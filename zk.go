@@ -5,40 +5,46 @@ import (
 	"fmt"
 	"github.com/golang/glog"
 	"github.com/samuel/go-zookeeper/zk"
+	"net/rpc"
 	"strconv"
 	"strings"
 	"time"
 )
 
 const (
-	regRetryTimes  = 3
-	regRetrySecond = 1 * time.Second
+	regRetryTimes     = 3
+	regRetrySecond    = 1 * time.Second
+	timestampMaxDelay = int64(10 * time.Second)
+)
+
+var (
+	zkConn *zk.Conn
 )
 
 // InitZK init the zookeeper connection.
-func InitZK() (*zk.Conn, error) {
+func InitZK() error {
 	conn, session, err := zk.Connect(MyConf.ZKAddr, MyConf.ZKTimeout)
 	if err != nil {
 		glog.Errorf("zk.Connect(\"%v\", %d) error(%v)", MyConf.ZKAddr, MyConf.ZKTimeout, err)
-		return nil, err
+		return err
 	}
+	zkConn = conn
 	go func() {
 		for {
 			event := <-session
 			glog.Infof("zookeeper get a event: %s", event.State.String())
 		}
 	}()
-
-	return conn, nil
+	return nil
 }
 
 // RegWorkerId register the workerid in zookeeper, check exists or not to avoid the duplicate workerid.
-func RegWorkerId(conn *zk.Conn, workerId int64) error {
+func RegWorkerId(workerId int64) error {
 	glog.Infof("trying to claim workerId: %d", workerId)
 	zkPath := fmt.Sprintf("%s/%d", MyConf.ZKPath)
 	// retry
 	for i := 0; i < regRetryTimes; i++ {
-		_, err := conn.Create(zkPath, []byte(""), zk.FlagEphemeral, zk.WorldACL(zk.PermAll))
+		_, err := zkConn.Create(zkPath, []byte(""), zk.FlagEphemeral, zk.WorldACL(zk.PermAll))
 		if err != nil {
 			if err == zk.ErrNodeExists {
 				glog.Warningf("zk.create(\"%s\") exists", zkPath)
@@ -55,9 +61,9 @@ func RegWorkerId(conn *zk.Conn, workerId int64) error {
 }
 
 // peers get workers all children in zookeeper.
-func peers(conn *zk.Conn) (map[int][]string, error) {
+func peers() (map[int][]string, error) {
 	// try create ZKPath
-	_, err := conn.Create(MyConf.ZKPath, []byte(""), 0, zk.WorldACL(zk.PermAll))
+	_, err := zkConn.Create(MyConf.ZKPath, []byte(""), 0, zk.WorldACL(zk.PermAll))
 	if err != nil {
 		if err == zk.ErrNodeExists {
 			glog.Warningf("zk.create(\"%s\") exists", MyConf.ZKPath)
@@ -67,7 +73,7 @@ func peers(conn *zk.Conn) (map[int][]string, error) {
 		}
 	}
 	// fetch all nodes
-	workers, _, err := conn.Children(MyConf.ZKPath)
+	workers, _, err := zkConn.Children(MyConf.ZKPath)
 	if err != nil {
 		glog.Errorf("zk.Get(\"%s\") error(%v)", MyConf.ZKPath, err)
 		return nil, err
@@ -81,7 +87,7 @@ func peers(conn *zk.Conn) (map[int][]string, error) {
 		}
 		// get info
 		zkPath := fmt.Sprintf("%s/%s", MyConf.ZKPath, worker)
-		d, _, err := conn.Get(zkPath)
+		d, _, err := zkConn.Get(zkPath)
 		if err != nil {
 			glog.Errorf("zk.Get(\"%s\") error(%v)", zkPath, err)
 			return nil, err
@@ -92,25 +98,55 @@ func peers(conn *zk.Conn) (map[int][]string, error) {
 }
 
 // sanityCheckPeers check the zookeeper datacenterId and all nodes time.
-func sanityCheckPeers(conn *zk.Conn) error {
-	allPeers, err := peers(conn)
+func SanityCheckPeers() error {
+	allPeers, err := peers()
 	if err != nil {
 		glog.Errorf("peers() error(%v)", err)
 		return err
 	}
-	//timestamps := int64(0)
+	timestamps := int64(0)
+	timestamp := int64(0)
+	datacenterId := int64(0)
 	for id, addrs := range allPeers {
 		if len(addrs) == 0 {
 			glog.Warningf("peers: %d don't have any address", id)
 			continue
 		}
 		// use first addr
-		// rpc
+		cli, err := rpc.Dial("tcp", addrs[0])
+		if err != nil {
+			glog.Errorf("rpc.Dial(\"tcp\", \"%s\") error(%v)", addrs[0])
+			return err
+		}
+		defer cli.Close()
+		if err = cli.Call("SnowflakeRPC.DatacenterId", 0, &datacenterId); err != nil {
+			glog.Error("rpc.Call(\"SnowflakeRPC.DatacenterId\", 0) error(%v)", err)
+			return err
+		}
 		// check datacenterid
-		// check workerid
+		if datacenterId != MyConf.DatacenterId {
+			glog.Errorf("worker at %s has datacenterId %d, but ours is %d", addrs[0], datacenterId, MyConf.DatacenterId)
+			return errors.New("Datacenter id insanity")
+		}
+		if err = cli.Call("SnowflakeRPC.Timestamp", 0, &timestamp); err != nil {
+			glog.Error("rpc.Call(\"SnowflakeRPC.DatacenterId\", 0) error(%v)", err)
+			return err
+		}
 		// add timestamps
+		timestamps += timestamp
 	}
-	// calc avg timestamps
 	// check 10s
+	// calc avg timestamps
+	now := time.Now().UnixNano()
+	avg := int64(timestamps / int64(len(allPeers)))
+	if now-avg > timestampMaxDelay {
+		glog.Errorf("timestamp sanity check failed. Mean timestamp is %d, but mine is %d so I'm more than 10s away from the mean", avg, now)
+		return errors.New("timestamp sanity check failed")
+	}
 	return nil
+}
+
+// CloseZK close the zookeeper connection.
+func CloseZK() {
+	zkConn.Close()
 }

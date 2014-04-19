@@ -24,6 +24,13 @@ func main() {
 	}
 	// pprof
 	InitPprof()
+	// zookeeper
+	if err := InitZK(); err != nil {
+		glog.Errorf("InitZK() error(%v)", err)
+		return
+	}
+	defer CloseZK()
+	// rpc
 	if err := InitRPC(); err != nil {
 		glog.Errorf("InitRPC() error(%v)", err)
 		return

@@ -44,9 +44,9 @@ func InitConfig() error {
 		RPCBind:      []string{"localhost:8080"},
 		DatacenterId: 0,
 		WorkerId:     []int64{0},
-        ZKAddr:       []string{"localhost:2181"},
-        ZKTimeout:    time.Second*15,
-        ZKPath:       "/gosnowflake-servers",
+		ZKAddr:       []string{"localhost:2181"},
+		ZKTimeout:    time.Second * 15,
+		ZKPath:       "/gosnowflake-servers",
 	}
 	if err := goConf.Parse(confPath); err != nil {
 		glog.Errorf("goconf.Parse(\"%s\") error(%v)", confPath, err)

@@ -6,16 +6,17 @@ import (
 	"github.com/golang/glog"
 	"net"
 	"net/rpc"
+	"time"
 )
 
 type SnowflakeRPC struct {
-	idWorkers map[int64]*IdWorker
+	idWorkers []*IdWorker
 }
 
 // StartRPC start rpc listen.
 func InitRPC() error {
 	// TODO check
-	idWorkers := make(map[int64]*IdWorker, len(MyConf.WorkerId))
+	idWorkers := make([]*IdWorker, maxWorkerId)
 	for _, workerId := range MyConf.WorkerId {
 		idWorker, err := NewIdWorker(MyConf.DatacenterId, workerId)
 		if err != nil {
@@ -53,7 +54,7 @@ func rpcListen(bind string) {
 
 // SnowflakeId generate a id.
 func (s *SnowflakeRPC) SnowflakeId(workerId int64, id *int64) error {
-	if worker, ok := s.idWorkers[workerId]; !ok {
+	if worker := s.idWorkers[workerId]; worker == nil {
 		glog.Warningf("workerId: %d not register", workerId)
 		return errors.New(fmt.Sprintf("snowflake workerId: %d don't register in this service", workerId))
 	} else {
@@ -61,7 +62,7 @@ func (s *SnowflakeRPC) SnowflakeId(workerId int64, id *int64) error {
 			glog.Errorf("worker.NextId() error(%v)", err)
 			return err
 		} else {
-			id = &tid
+			*id = tid
 		}
 	}
 	return nil
@@ -69,6 +70,12 @@ func (s *SnowflakeRPC) SnowflakeId(workerId int64, id *int64) error {
 
 // DatacenterId return the services's datacenterId.
 func (s *SnowflakeRPC) DatacenterId(ignore int, dataCenterId *int64) error {
-	dataCenterId = &MyConf.DatacenterId
+	*dataCenterId = MyConf.DatacenterId
+	return nil
+}
+
+// Timestamp return the service current unixnano
+func (s *SnowflakeRPC) Timestamp(ignore int, timestamp *int64) error {
+	*timestamp = time.Now().UnixNano()
 	return nil
 }
