@@ -8,7 +8,6 @@ import (
 
 func main() {
 	flag.Parse()
-	glog.Errorf("gosnowflake service start")
 	sc := InitSignal()
 	defer glog.Flush()
 	// config
@@ -17,6 +16,7 @@ func main() {
 		return
 	}
 	runtime.GOMAXPROCS(MyConf.MaxProc)
+	glog.Infof("gosnowflake service start [datacenter: %d]", MyConf.DatacenterId)
 	// process
 	if err := InitProcess(); err != nil {
 		glog.Errorf("InitProcess() error(%v)", err)
@@ -37,5 +37,5 @@ func main() {
 	}
 	// init signals, block wait signals
 	HandleSignal(sc)
-	glog.Errorf("gosnowflake service stop")
+	glog.Info("gosnowflake service stop")
 }

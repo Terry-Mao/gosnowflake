@@ -15,7 +15,7 @@ const (
 	defaultGroup = "nobody"
 )
 
-// Init create pid file, set working dir, setgid and setuid.
+// InitProcess create pid file, set working dir, setgid and setuid.
 func InitProcess() error {
 	// setuid and setgid
 	ug := strings.SplitN(MyConf.User, " ", 2)

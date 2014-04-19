@@ -45,7 +45,7 @@ func NewIdWorker(workerId, datacenterId int64) (*IdWorker, error) {
 	idWorker.lastTimestamp = -1
 	idWorker.sequence = 0
 	idWorker.mutex = &sync.Mutex{}
-	glog.Infof("worker starting. timestamp left shift %d, datacenter id bits %d, worker id bits %d, sequence bits %d, workerid %d", timestampLeftShift, datacenterIdBits, workerIdBits, sequenceBits, workerId)
+	glog.V(1).Infof("worker starting. timestamp left shift %d, datacenter id bits %d, worker id bits %d, sequence bits %d, workerid %d", timestampLeftShift, datacenterIdBits, workerIdBits, sequenceBits, workerId)
 	return idWorker, nil
 }
 

@@ -6,7 +6,7 @@ import (
 	"net/http/pprof"
 )
 
-// StartPprof start http pprof.
+// InitPprof start http pprof.
 func InitPprof() {
 	pprofServeMux := http.NewServeMux()
 	pprofServeMux.HandleFunc("/debug/pprof/", pprof.Index)

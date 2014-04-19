@@ -41,10 +41,10 @@ func InitZK() error {
 // RegWorkerId register the workerid in zookeeper, check exists or not to avoid the duplicate workerid.
 func RegWorkerId(workerId int64) error {
 	glog.Infof("trying to claim workerId: %d", workerId)
-	zkPath := fmt.Sprintf("%s/%d", MyConf.ZKPath)
+	zkPath := fmt.Sprintf("%s/%d", MyConf.ZKPath, workerId)
 	// retry
 	for i := 0; i < regRetryTimes; i++ {
-		_, err := zkConn.Create(zkPath, []byte(""), zk.FlagEphemeral, zk.WorldACL(zk.PermAll))
+		_, err := zkConn.Create(zkPath, []byte(strings.Join(MyConf.RPCBind, ",")), zk.FlagEphemeral, zk.WorldACL(zk.PermAll))
 		if err != nil {
 			if err == zk.ErrNodeExists {
 				glog.Warningf("zk.create(\"%s\") exists", zkPath)
@@ -104,6 +104,9 @@ func SanityCheckPeers() error {
 		glog.Errorf("peers() error(%v)", err)
 		return err
 	}
+	if len(allPeers) == 0 {
+		return nil
+	}
 	timestamps := int64(0)
 	timestamp := int64(0)
 	datacenterId := int64(0)
@@ -141,6 +144,7 @@ func SanityCheckPeers() error {
 	// calc avg timestamps
 	now := time.Now().UnixNano()
 	avg := int64(timestamps / peerCount)
+	glog.V(1).Infof("timestamps: %d, peer: %d, avg: %d, now - avg: %d, maxdelay: %d", timestamps, peerCount, avg, now-avg, timestampMaxDelay)
 	if now-avg > timestampMaxDelay {
 		glog.Errorf("timestamp sanity check failed. Mean timestamp is %d, but mine is %d so I'm more than 10s away from the mean", avg, now)
 		return errors.New("timestamp sanity check failed")

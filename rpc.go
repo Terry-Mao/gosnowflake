@@ -15,16 +15,22 @@ type SnowflakeRPC struct {
 
 // StartRPC start rpc listen.
 func InitRPC() error {
-	// TODO check
+	if err := SanityCheckPeers(); err != nil {
+		glog.Errorf("SanityCheckPeers() error(%v)", err)
+		return err
+	}
 	idWorkers := make([]*IdWorker, maxWorkerId)
 	for _, workerId := range MyConf.WorkerId {
-		idWorker, err := NewIdWorker(MyConf.DatacenterId, workerId)
+		idWorker, err := NewIdWorker(workerId, MyConf.DatacenterId)
 		if err != nil {
 			glog.Errorf("NewIdWorker(%d, %d) error(%v)", MyConf.DatacenterId, workerId)
 			return err
 		}
 		idWorkers[workerId] = idWorker
-		// TODO register
+		if err := RegWorkerId(workerId); err != nil {
+			glog.Errorf("RegWorkerId(%d) error(%v)", workerId, err)
+			return err
+		}
 	}
 	s := &SnowflakeRPC{idWorkers: idWorkers}
 	rpc.Register(s)
