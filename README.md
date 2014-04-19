@@ -12,7 +12,7 @@ Just pull `Terry-Mao/gosnowflake` from github using `go get`:
 
 ```sh
 # download the code
-$ go get -u github.com/Terry-Mao/paint
+$ go get -u github.com/Terry-Mao/gosnowflake
 # find the dir
 $ go install
 ```
