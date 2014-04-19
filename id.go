@@ -23,9 +23,9 @@ const (
 
 type IdWorker struct {
 	sequence      int64
+	lastTimestamp int64
 	workerId      int64
 	datacenterId  int64
-	lastTimestamp int64
 	mutex         *sync.Mutex
 }
 
