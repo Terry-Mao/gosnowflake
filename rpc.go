@@ -52,8 +52,8 @@ func rpcListen(bind string) {
 	rpc.Accept(l)
 }
 
-// SnowflakeId generate a id.
-func (s *SnowflakeRPC) SnowflakeId(workerId int64, id *int64) error {
+// NextId generate a id.
+func (s *SnowflakeRPC) NextId(workerId int64, id *int64) error {
 	if worker := s.idWorkers[workerId]; worker == nil {
 		glog.Warningf("workerId: %d not register", workerId)
 		return errors.New(fmt.Sprintf("snowflake workerId: %d don't register in this service", workerId))

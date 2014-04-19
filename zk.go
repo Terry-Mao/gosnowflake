@@ -107,6 +107,7 @@ func SanityCheckPeers() error {
 	timestamps := int64(0)
 	timestamp := int64(0)
 	datacenterId := int64(0)
+	peerCount := int64(0)
 	for id, addrs := range allPeers {
 		if len(addrs) == 0 {
 			glog.Warningf("peers: %d don't have any address", id)
@@ -129,16 +130,17 @@ func SanityCheckPeers() error {
 			return errors.New("Datacenter id insanity")
 		}
 		if err = cli.Call("SnowflakeRPC.Timestamp", 0, &timestamp); err != nil {
-			glog.Error("rpc.Call(\"SnowflakeRPC.DatacenterId\", 0) error(%v)", err)
+			glog.Error("rpc.Call(\"SnowflakeRPC.Timestamp\", 0) error(%v)", err)
 			return err
 		}
 		// add timestamps
 		timestamps += timestamp
+		peerCount++
 	}
 	// check 10s
 	// calc avg timestamps
 	now := time.Now().UnixNano()
-	avg := int64(timestamps / int64(len(allPeers)))
+	avg := int64(timestamps / peerCount)
 	if now-avg > timestampMaxDelay {
 		glog.Errorf("timestamp sanity check failed. Mean timestamp is %d, but mine is %d so I'm more than 10s away from the mean", avg, now)
 		return errors.New("timestamp sanity check failed")
