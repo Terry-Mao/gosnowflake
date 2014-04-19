@@ -5,6 +5,7 @@ import (
 	"github.com/Terry-Mao/goconf"
 	"github.com/golang/glog"
 	"runtime"
+	"time"
 )
 
 var (
@@ -15,23 +16,37 @@ var (
 )
 
 type Config struct {
-	User    string `goconf:"base:user"`
-	PidFile string `goconf:"base:pid_file"`
-	Dir     string `goconf:"base:dir"`
-	MaxProc int    `goconf:"base:max_proc"`
+	User         string        `goconf:"base:user"`
+	PidFile      string        `goconf:"base:pid"`
+	Dir          string        `goconf:"base:dir"`
+	MaxProc      int           `goconf:"base:maxproc"`
+	RPCBind      []string      `goconf:"base:rpc.bind:,"`
+	StatBind     []string      `goconf:"base:stat.bind:,"`
+	PprofBind    []string      `goconf:"base:pprof.bind:,"`
+	DatacenterId int64         `goconf:"snowflake:datacenter"`
+	WorkerId     []int64       `goconf:"snowflake:worker"`
+	ZKAddr       []string      `goconf:"zookeeper:addr"`
+	ZKTimeout    time.Duration `goconf:"zookeeper:timeout:time`
+	ZKPath       string        `goconf:"zookeeper:path"`
 }
 
 func init() {
-	flag.StringVar(&confPath, "conf", "./user_account.conf", " set user_account config file path")
+	flag.StringVar(&confPath, "conf", "./gosnowflake.conf", " set gosnowflake config file path")
 }
 
 // Init init the configuration file.
-func Init() error {
+func InitConfig() error {
 	MyConf = &Config{
-		User:    "nobody",
-		PidFile: "/tmp/user_account.pid",
-		Dir:     "/dev/null",
-		MaxProc: runtime.NumCPU(),
+		User:         "nobody",
+		PidFile:      "/tmp/user_account.pid",
+		Dir:          "/dev/null",
+		MaxProc:      runtime.NumCPU(),
+		RPCBind:      []string{"localhost:8080"},
+		DatacenterId: 0,
+		WorkerId:     []int64{0},
+        ZKAddr:       []string{"localhost:2181"},
+        ZKTimeout:    time.Second*15,
+        ZKPath:       "/gosnowflake-servers",
 	}
 	if err := goConf.Parse(confPath); err != nil {
 		glog.Errorf("goconf.Parse(\"%s\") error(%v)", confPath, err)
@@ -45,7 +60,7 @@ func Init() error {
 }
 
 // Reload reload the configuration file.
-func Reload() error {
+func ReloadConfig() error {
 	glog.Infof("config file: \"%s\" reload", confPath)
 	t, err := goConf.Reload()
 	if err != nil {
