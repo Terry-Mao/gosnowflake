@@ -87,8 +87,8 @@ dir ./
 ################################## ZOOKEEPER ##################################
 [zookeeper]
 # The zookeeper cluster section. When gosnowflake start, it will register data 
-in the zookeeper cluster and create a ephemeral node. When gosnowflake died, 
-the node will drop by zookeeper cluster. 
+# in the zookeeper cluster and create a ephemeral node. When gosnowflake died, 
+# the node will drop by zookeeper cluster. 
 
 # Zookeeper cluster addresses. Mutiple address split by a ",".
 # Examples:
