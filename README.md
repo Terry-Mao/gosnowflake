@@ -23,6 +23,10 @@ $ go build
 $ ./gosnowflake -conf=./gosnowflake-example.conf
 # for help
 $ ./gosnowflake -h
+# test
+$ cd $GOPATH/src/github.com/Terry-Mao/gosnowflake/test
+$ go build
+$ ./test
 ```
 
 ## Document
@@ -125,28 +129,55 @@ datacenter 0
 worker 0,1,2
 ```
 
+## RPC API
+
+`SnowflakeRPC.NextId`: generate a snowflake id.
+
+`SnowflakeRPC.DatacenterId`: get gosnowflake service's datacenterId.
+
+`SnowflakeRPC.Timestamp`: get gosnowflake service's current timestamp.
+
 ## Usage
 
 ```go
 package main
 
 import (
-    "fmt"
-    "net/rpc"
+	"fmt"
+	"net/rpc"
+    "github.com/golang/glog"
 )
 
 func main() {
-    cli, err := rpc.Dial("tcp", "localhost:8080")
-    if err != nil {
-        panic(err)
-    }
-    defer cli.Close()
-    id := int64(0)
-    workerId := 0
-    if err = cli.Call("SnowflakeRPC.NextId", workerId, &id); err != nil {
-        panic(err)
-    }
-    fmt.Printf("id: %d\n", id)
+    addr := "localhost:8080"
+	cli, err := rpc.Dial("tcp", addr)
+	if err != nil {
+        glog.Errorf("rcp.Dial(\"tcp\", \"%s\") error(%v)", addr, err)
+        return
+	}
+	defer cli.Close()
+    // get snowflake id by workerId
+	id := int64(0)
+	workerId := 0
+	if err = cli.Call("SnowflakeRPC.NextId", workerId, &id); err != nil {
+        glog.Errorf("rpc.Call(\"SnowflakeRPC.NextId\", %d, &id) error(%v)", workerId, err)
+        return
+	}
+	glog.Infof("nextid: %d\n", id)
+    // get datacenter id
+    datacenterId := int64(0)
+	if err = cli.Call("SnowflakeRPC.DatacenterId", 0, &dataCenterId); err != nil {
+        glog.Errorf("rpc.Call(\"SnowflakeRPC.DatacenterId\", 0, &datacenterId) error(%v)", err)
+        return
+	}
+	glog.Infof("datacenterid: %d\n", datacenterId)
+    // get current timestamp
+    timestamp := int64(0)
+	if err = cli.Call("SnowflakeRPC.Timestamp", 0, &timestamp); err != nil {
+        glog.Errorf("rpc.Call(\"SnowflakeRPC.Timestamp\", 0, &timestamp) error(%v)", err)
+        return
+	}
+	glog.Infof("timestamp: %d\n", timestamp)
 }
 ```
 
