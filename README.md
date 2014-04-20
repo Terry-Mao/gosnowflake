@@ -166,7 +166,7 @@ func main() {
 	glog.Infof("nextid: %d\n", id)
     // get datacenter id
     datacenterId := int64(0)
-	if err = cli.Call("SnowflakeRPC.DatacenterId", 0, &dataCenterId); err != nil {
+	if err = cli.Call("SnowflakeRPC.DatacenterId", 0, &datacenterId); err != nil {
         glog.Errorf("rpc.Call(\"SnowflakeRPC.DatacenterId\", 0, &datacenterId) error(%v)", err)
         return
 	}
