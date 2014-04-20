@@ -13,14 +13,27 @@ zookeeper is required.
 Just pull `Terry-Mao/gosnowflake` from github using `go get`:
 
 ```sh
+# install golang from https://code.google.com/p/go/downloads/list
+# here golang 1.2(linux-amd64)
+$ wget https://go.googlecode.com/files/go1.2.linux-amd64.tar.gz
+$ tar -xvf go1.2.linux-amd64.tar.gz
+$ cp -R go /usr/local/
+$ vim /etc/profile.d/golang.sh
+# add below to golang.sh
+# export GOROOT=/usr/local/go
+# export PATH=$PATH:$GOROOT/bin
+# export GOPATH=/data/apps/go
+$ source /etc/profile.d/gopush.sh
 # download the code
 $ go get -u github.com/Terry-Mao/gosnowflake
 # find the dir
 $ cd $GOPATH/src/github.com/Terry-Mao/gosnowflake
 # compile
-$ go build
+$ go install
+$ cp ./gosnowflake-example.conf $GOPATH/bin/gosnowflake.conf
+$ cd $GOPATH/bin
 # run
-$ ./gosnowflake -conf=./gosnowflake-example.conf
+$ ./gosnowflake -conf=./gosnowflake.conf
 # for help
 $ ./gosnowflake -h
 # test
