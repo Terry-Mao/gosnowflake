@@ -4,6 +4,8 @@
 
 ## Requeriments
 
+golang 1.2 is required.
+
 zookeeper is required.
 
 ## Installation
@@ -14,7 +16,13 @@ Just pull `Terry-Mao/gosnowflake` from github using `go get`:
 # download the code
 $ go get -u github.com/Terry-Mao/gosnowflake
 # find the dir
-$ go install
+$ cd $GOPATH/src/github.com/Terry-Mao/gosnowflake
+# compile
+$ go build
+# run
+$ ./gosnowflake -conf=./gosnowflake-example.conf
+# for help
+$ ./gosnowflake -h
 ```
 
 ## Usage
@@ -41,3 +49,7 @@ func main() {
     fmt.Printf("id: %d\n", id)
 }
 ```
+
+## Highly Available
+
+use `heartbeat` or `keepalived` apply a VIP for the client.
