@@ -150,6 +150,8 @@ worker 0,1,2
 
 `SnowflakeRPC.Timestamp`: get gosnowflake service's current timestamp.
 
+`SnowflakeRPC.Ping`: get gosnowflake service's status.
+
 ## Usage
 
 ```go
@@ -191,6 +193,12 @@ func main() {
         return
 	}
 	glog.Infof("timestamp: %d\n", timestamp)
+	status := 0
+	if err = cli.Call("SnowflakeRPC.Ping", 0, &status); err != nil {
+		glog.Errorf("rpc.Call(\"SnowflakeRPC.Ping\", 0, &status) error(%v)", err)
+		return
+	}
+	glog.Infof("status: %d\n", status)
 }
 ```
 
