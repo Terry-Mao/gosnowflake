@@ -205,3 +205,5 @@ func main() {
 ## Highly Available
 
 use `heartbeat` or `keepalived` apply a VIP for the client.
+
+a easy keepalived configration: [here]()
