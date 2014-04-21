@@ -1,23 +1,28 @@
 package main
 
 import (
+	"flag"
 	"github.com/golang/glog"
 	"net/rpc"
 )
 
 func main() {
-	addr := "localhost:8080"
-	cli, err := rpc.Dial("tcp", addr)
+	flag.Parse()
+	if err := InitConfig(); err != nil {
+		glog.Errorf("InitConfig() error(%v)", err)
+		return
+	}
+
+	cli, err := rpc.Dial("tcp", MyConf.RPCAddr)
 	if err != nil {
-		glog.Errorf("rcp.Dial(\"tcp\", \"%s\") error(%v)", addr, err)
+		glog.Errorf("rcp.Dial(\"tcp\", \"%s\") error(%v)", MyConf.RPCAddr, err)
 		return
 	}
 	defer cli.Close()
 	// get snowflake id by workerId
 	id := int64(0)
-	workerId := 0
-	if err = cli.Call("SnowflakeRPC.NextId", workerId, &id); err != nil {
-		glog.Errorf("rpc.Call(\"SnowflakeRPC.NextId\", %d, &id) error(%v)", workerId, err)
+	if err = cli.Call("SnowflakeRPC.NextId", MyConf.WorkerId, &id); err != nil {
+		glog.Errorf("rpc.Call(\"SnowflakeRPC.NextId\", %d, &id) error(%v)", MyConf.WorkerId, err)
 		return
 	}
 	glog.Infof("nextid: %d\n", id)
@@ -35,4 +40,10 @@ func main() {
 		return
 	}
 	glog.Infof("timestamp: %d\n", timestamp)
+	status := 0
+	if err = cli.Call("SnowflakeRPC.Ping", 0, &status); err != nil {
+		glog.Errorf("rpc.Call(\"SnowflakeRPC.Ping\", 0, &status) error(%v)", err)
+		return
+	}
+	glog.Infof("status: %d\n", status)
 }

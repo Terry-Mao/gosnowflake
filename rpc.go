@@ -85,3 +85,9 @@ func (s *SnowflakeRPC) Timestamp(ignore int, timestamp *int64) error {
 	*timestamp = time.Now().UnixNano()
 	return nil
 }
+
+// Ping return the service status.
+func (s *SnowflakeRPC) Ping(ignore int, status *int) error {
+    *status = 0
+    return nil
+}
