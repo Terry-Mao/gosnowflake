@@ -206,4 +206,4 @@ func main() {
 
 use `heartbeat` or `keepalived` apply a VIP for the client.
 
-a easy keepalived configration: [here]()
+a easy keepalived configration: [here](https://github.com/Terry-Mao/gosnowflake/tree/master/keepalived)
