@@ -207,3 +207,7 @@ func main() {
 use `heartbeat` or `keepalived` apply a VIP for the client.
 
 a easy keepalived configration: [here](https://github.com/Terry-Mao/gosnowflake/tree/master/keepalived)
+
+## LICENSE
+
+`gosnowflake` is is distributed under the terms of the GNU General Public License, version 3.0 [GPLv3](http://www.gnu.org/licenses/gpl.txt)
