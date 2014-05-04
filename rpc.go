@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"github.com/golang/glog"
 	"net"
@@ -21,6 +20,10 @@ func InitRPC() error {
 	}
 	idWorkers := make([]*IdWorker, maxWorkerId)
 	for _, workerId := range MyConf.WorkerId {
+        if t := idWorkers[workerId]; t != nil {
+            glog.Errorf("init workerId: %d already exists", workerId)
+            return fmt.Errorf("init workerId: %d exists", workerId)
+        }
 		idWorker, err := NewIdWorker(workerId, MyConf.DatacenterId)
 		if err != nil {
 			glog.Errorf("NewIdWorker(%d, %d) error(%v)", MyConf.DatacenterId, workerId)
@@ -62,7 +65,7 @@ func rpcListen(bind string) {
 func (s *SnowflakeRPC) NextId(workerId int64, id *int64) error {
 	if worker := s.idWorkers[workerId]; worker == nil {
 		glog.Warningf("workerId: %d not register", workerId)
-		return errors.New(fmt.Sprintf("snowflake workerId: %d don't register in this service", workerId))
+		return fmt.Errorf("snowflake workerId: %d don't register in this service", workerId)
 	} else {
 		if tid, err := worker.NextId(); err != nil {
 			glog.Errorf("worker.NextId() error(%v)", err)
