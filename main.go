@@ -8,7 +8,6 @@ import (
 
 func main() {
 	flag.Parse()
-	sc := InitSignal()
 	defer glog.Flush()
 	// config
 	if err := InitConfig(); err != nil {
@@ -36,6 +35,7 @@ func main() {
 		return
 	}
 	// init signals, block wait signals
+	sc := InitSignal()
 	HandleSignal(sc)
 	glog.Info("gosnowflake service stop")
 }
