@@ -79,6 +79,10 @@ func rpcListen(bind string) {
 
 // NextId generate a id.
 func (s *SnowflakeRPC) NextId(workerId int64, id *int64) error {
+	if workerId > maxWorkerId || workerId < 0 {
+		glog.Errorf("worker Id can't be greater than %d or less than 0", maxWorkerId)
+		return errors.New(fmt.Sprintf("worker Id: %d error", workerId))
+	}
 	if worker := s.idWorkers[workerId]; worker == nil {
 		glog.Warningf("workerId: %d not register", workerId)
 		return fmt.Errorf("snowflake workerId: %d don't register in this service", workerId)
