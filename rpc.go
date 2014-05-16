@@ -17,6 +17,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"github.com/golang/glog"
 	"net"
@@ -36,10 +37,10 @@ func InitRPC() error {
 	}
 	idWorkers := make([]*IdWorker, maxWorkerId)
 	for _, workerId := range MyConf.WorkerId {
-        if t := idWorkers[workerId]; t != nil {
-            glog.Errorf("init workerId: %d already exists", workerId)
-            return fmt.Errorf("init workerId: %d exists", workerId)
-        }
+		if t := idWorkers[workerId]; t != nil {
+			glog.Errorf("init workerId: %d already exists", workerId)
+			return fmt.Errorf("init workerId: %d exists", workerId)
+		}
 		idWorker, err := NewIdWorker(workerId, MyConf.DatacenterId)
 		if err != nil {
 			glog.Errorf("NewIdWorker(%d, %d) error(%v)", MyConf.DatacenterId, workerId)
@@ -111,6 +112,6 @@ func (s *SnowflakeRPC) Timestamp(ignore int, timestamp *int64) error {
 
 // Ping return the service status.
 func (s *SnowflakeRPC) Ping(ignore int, status *int) error {
-    *status = 0
-    return nil
+	*status = 0
+	return nil
 }
