@@ -1,4 +1,5 @@
 #!/bin/bash
+gosnowflake_pid=/tmp/gosnowflake.pid
 # stop gosnowflake
 function stop_gosnowflake {
     if test -f ${gosnowflake_pid}
