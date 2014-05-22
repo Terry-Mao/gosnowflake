@@ -33,6 +33,14 @@ const (
 
 // InitProcess create pid file, set working dir, setgid and setuid.
 func InitProcess() error {
+	// change working dir
+	if err := os.Chdir(MyConf.Dir); err != nil {
+		return err
+	}
+	// create pid file
+	if err := ioutil.WriteFile(MyConf.PidFile, []byte(fmt.Sprintf("%d\n", os.Getpid())), 0644); err != nil {
+		return err
+	}
 	// setuid and setgid
 	ug := strings.SplitN(MyConf.User, " ", 2)
 	usr := defaultUser
@@ -65,14 +73,6 @@ func InitProcess() error {
 		return err
 	}
 	if err := syscall.Setuid(uid); err != nil {
-		return err
-	}
-	// change working dir
-	if err := os.Chdir(MyConf.Dir); err != nil {
-		return err
-	}
-	// create pid file
-	if err := ioutil.WriteFile(MyConf.PidFile, []byte(fmt.Sprintf("%d\n", os.Getpid())), 0644); err != nil {
 		return err
 	}
 	return nil
