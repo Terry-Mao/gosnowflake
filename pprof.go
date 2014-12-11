@@ -17,7 +17,7 @@
 package main
 
 import (
-	"github.com/golang/glog"
+	log "code.google.com/p/log4go"
 	"net/http"
 	"net/http/pprof"
 )
@@ -32,7 +32,7 @@ func InitPprof() {
 	for _, addr := range MyConf.PprofBind {
 		go func() {
 			if err := http.ListenAndServe(addr, pprofServeMux); err != nil {
-				glog.Errorf("http.ListenAndServe(\"%s\", pproServeMux) error(%v)", addr)
+				log.Error("http.ListenAndServe(\"%s\", pproServeMux) error(%v)", addr)
 				panic(err)
 			}
 		}()

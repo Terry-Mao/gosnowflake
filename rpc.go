@@ -17,9 +17,9 @@
 package main
 
 import (
+	log "code.google.com/p/log4go"
 	"errors"
 	"fmt"
-	"github.com/golang/glog"
 	"net"
 	"net/rpc"
 	"time"
@@ -32,30 +32,30 @@ type SnowflakeRPC struct {
 // StartRPC start rpc listen.
 func InitRPC() error {
 	if err := SanityCheckPeers(); err != nil {
-		glog.Errorf("SanityCheckPeers() error(%v)", err)
+		log.Error("SanityCheckPeers() error(%v)", err)
 		return err
 	}
 	idWorkers := make([]*IdWorker, maxWorkerId)
 	for _, workerId := range MyConf.WorkerId {
 		if t := idWorkers[workerId]; t != nil {
-			glog.Errorf("init workerId: %d already exists", workerId)
+			log.Error("init workerId: %d already exists", workerId)
 			return fmt.Errorf("init workerId: %d exists", workerId)
 		}
 		idWorker, err := NewIdWorker(workerId, MyConf.DatacenterId)
 		if err != nil {
-			glog.Errorf("NewIdWorker(%d, %d) error(%v)", MyConf.DatacenterId, workerId)
+			log.Error("NewIdWorker(%d, %d) error(%v)", MyConf.DatacenterId, workerId)
 			return err
 		}
 		idWorkers[workerId] = idWorker
 		if err := RegWorkerId(workerId); err != nil {
-			glog.Errorf("RegWorkerId(%d) error(%v)", workerId, err)
+			log.Error("RegWorkerId(%d) error(%v)", workerId, err)
 			return err
 		}
 	}
 	s := &SnowflakeRPC{idWorkers: idWorkers}
 	rpc.Register(s)
 	for _, bind := range MyConf.RPCBind {
-		glog.Infof("start listen rpc addr: \"%s\"", bind)
+		log.Info("start listen rpc addr: \"%s\"", bind)
 		go rpcListen(bind)
 	}
 	return nil
@@ -65,14 +65,14 @@ func InitRPC() error {
 func rpcListen(bind string) {
 	l, err := net.Listen("tcp", bind)
 	if err != nil {
-		glog.Errorf("net.Listen(\"tcp\", \"%s\") error(%v)", bind, err)
+		log.Error("net.Listen(\"tcp\", \"%s\") error(%v)", bind, err)
 		panic(err)
 	}
 	// if process exit, then close the rpc bind
 	defer func() {
-		glog.Infof("rpc addr: \"%s\" close", bind)
+		log.Info("rpc addr: \"%s\" close", bind)
 		if err := l.Close(); err != nil {
-			glog.Errorf("listener.Close() error(%v)", err)
+			log.Error("listener.Close() error(%v)", err)
 		}
 	}()
 	rpc.Accept(l)
@@ -81,15 +81,15 @@ func rpcListen(bind string) {
 // NextId generate a id.
 func (s *SnowflakeRPC) NextId(workerId int64, id *int64) error {
 	if workerId > maxWorkerId || workerId < 0 {
-		glog.Errorf("worker Id can't be greater than %d or less than 0", maxWorkerId)
+		log.Error("worker Id can't be greater than %d or less than 0", maxWorkerId)
 		return errors.New(fmt.Sprintf("worker Id: %d error", workerId))
 	}
 	if worker := s.idWorkers[workerId]; worker == nil {
-		glog.Warningf("workerId: %d not register", workerId)
+		log.Warn("workerId: %d not register", workerId)
 		return fmt.Errorf("snowflake workerId: %d don't register in this service", workerId)
 	} else {
 		if tid, err := worker.NextId(); err != nil {
-			glog.Errorf("worker.NextId() error(%v)", err)
+			log.Error("worker.NextId() error(%v)", err)
 			return err
 		} else {
 			*id = tid

@@ -19,7 +19,6 @@ package main
 import (
 	"flag"
 	"github.com/Terry-Mao/goconf"
-	"github.com/golang/glog"
 	"runtime"
 	"time"
 )
@@ -32,9 +31,9 @@ var (
 )
 
 type Config struct {
-	User         string        `goconf:"base:user"`
 	PidFile      string        `goconf:"base:pid"`
 	Dir          string        `goconf:"base:dir"`
+	Log          string        `goconf:"base:log"`
 	MaxProc      int           `goconf:"base:maxproc"`
 	RPCBind      []string      `goconf:"base:rpc.bind:,"`
 	StatBind     []string      `goconf:"base:stat.bind:,"`
@@ -51,11 +50,11 @@ func init() {
 }
 
 // Init init the configuration file.
-func InitConfig() error {
+func InitConfig() (err error) {
 	MyConf = &Config{
-		User:         "nobody",
-		PidFile:      "/tmp/user_account.pid",
+		PidFile:      "/tmp/gosnowflake.pid",
 		Dir:          "/dev/null",
+		Log:          "./log/xml",
 		MaxProc:      runtime.NumCPU(),
 		RPCBind:      []string{"localhost:8080"},
 		DatacenterId: 0,
@@ -64,34 +63,11 @@ func InitConfig() error {
 		ZKTimeout:    time.Second * 15,
 		ZKPath:       "/gosnowflake-servers",
 	}
-	if err := goConf.Parse(confPath); err != nil {
-		glog.Errorf("goconf.Parse(\"%s\") error(%v)", confPath, err)
-		return err
+	if err = goConf.Parse(confPath); err != nil {
+		return
 	}
-	if err := goConf.Unmarshal(MyConf); err != nil {
-		glog.Errorf("goconf.Unmarshall() error(%v)", err)
-		return err
+	if err = goConf.Unmarshal(MyConf); err != nil {
+		return
 	}
-	return nil
-}
-
-// Reload reload the configuration file.
-func ReloadConfig() error {
-	glog.Infof("config file: \"%s\" reload", confPath)
-	t, err := goConf.Reload()
-	if err != nil {
-		glog.Errorf("goconf.Reload() error(%v)", err)
-		glog.Warningf("confi file: \"%s\" reload failed, use original one", confPath)
-		return err
-	}
-	goConf = t
-	// new a Config for Unmarshal
-	myConf := &Config{}
-	if err := goConf.Unmarshal(myConf); err != nil {
-		glog.Errorf("goconf.Unmarshall() error(%v)", err)
-		return err
-	}
-	// atomic replace MyConf
-	MyConf = myConf
-	return nil
+	return
 }

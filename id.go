@@ -14,12 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with gosnowflake.  If not, see <http://www.gnu.org/licenses/>.
 
+// Reference: https://github.com/twitter/snowflake
+
 package main
 
 import (
+	log "code.google.com/p/log4go"
 	"errors"
 	"fmt"
-	"github.com/golang/glog"
 	"sync"
 	"time"
 )
@@ -49,11 +51,11 @@ type IdWorker struct {
 func NewIdWorker(workerId, datacenterId int64) (*IdWorker, error) {
 	idWorker := &IdWorker{}
 	if workerId > maxWorkerId || workerId < 0 {
-		glog.Errorf("worker Id can't be greater than %d or less than 0", maxWorkerId)
+		log.Error("worker Id can't be greater than %d or less than 0", maxWorkerId)
 		return nil, errors.New(fmt.Sprintf("worker Id: %d error", workerId))
 	}
 	if datacenterId > maxDatacenterId || datacenterId < 0 {
-		glog.Errorf("datacenter Id can't be greater than %d or less than 0", maxDatacenterId)
+		log.Error("datacenter Id can't be greater than %d or less than 0", maxDatacenterId)
 		return nil, errors.New(fmt.Sprintf("datacenter Id: %d error", datacenterId))
 	}
 	idWorker.workerId = workerId
@@ -61,7 +63,7 @@ func NewIdWorker(workerId, datacenterId int64) (*IdWorker, error) {
 	idWorker.lastTimestamp = -1
 	idWorker.sequence = 0
 	idWorker.mutex = &sync.Mutex{}
-	glog.V(1).Infof("worker starting. timestamp left shift %d, datacenter id bits %d, worker id bits %d, sequence bits %d, workerid %d", timestampLeftShift, datacenterIdBits, workerIdBits, sequenceBits, workerId)
+	log.Debug("worker starting. timestamp left shift %d, datacenter id bits %d, worker id bits %d, sequence bits %d, workerid %d", timestampLeftShift, datacenterIdBits, workerIdBits, sequenceBits, workerId)
 	return idWorker, nil
 }
 
@@ -85,7 +87,7 @@ func (id *IdWorker) NextId() (int64, error) {
 	defer id.mutex.Unlock()
 	timestamp := timeGen()
 	if timestamp < id.lastTimestamp {
-		glog.Errorf("clock is moving backwards.  Rejecting requests until %d.", id.lastTimestamp)
+		log.Error("clock is moving backwards.  Rejecting requests until %d.", id.lastTimestamp)
 		return 0, errors.New(fmt.Sprintf("Clock moved backwards.  Refusing to generate id for %d milliseconds", id.lastTimestamp-timestamp))
 	}
 	if id.lastTimestamp == timestamp {
