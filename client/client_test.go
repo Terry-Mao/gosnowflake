@@ -1,6 +1,7 @@
 package client
 
 import (
+	"fmt"
 	"path"
 	"testing"
 	"time"
@@ -17,24 +18,26 @@ func tFunc(t *testing.T) {
 		t.Errorf("initZK error(%v)", err)
 		t.FailNow()
 	}
-	nodes, _, err := client.getChildrenWatch()
+	nodes, _, err := zkConn.Children(ROOT)
 	if err != nil {
 		t.Errorf("getChildrenWatch error(%v)", err)
 		t.FailNow()
 	}
 	t.Logf("nodes %v", nodes)
-	wp := path.Join(ROOT, nodes[0])
-	nodes, _, err = zkConn.Children(wp)
-	if err != nil {
-		t.Errorf("zkConn.Children path(%s) error(%v)", wp, err)
-		t.FailNow()
+	for _, work := range nodes {
+		wp := path.Join(ROOT, work)
+		rpcs, _, err := zkConn.Children(wp)
+		if err != nil {
+			t.Errorf("zkConn.Children path(%s) error(%v)", wp, err)
+			t.FailNow()
+		}
+		bs, _, err := zkConn.Get(path.Join(wp, rpcs[0]))
+		if err != nil {
+			t.Errorf("zkConn.Get(%s) error(%v)", path.Join(wp, nodes[0]), err)
+			t.FailNow()
+		}
+		t.Logf("rpc %s", string(bs))
 	}
-	bs, _, err := zkConn.Get(path.Join(wp, nodes[0]))
-	if err != nil {
-		t.Errorf("zkConn.Get(%s) error(%v)", path.Join(wp, nodes[0]), err)
-		t.FailNow()
-	}
-	t.Logf("rpc %s", string(bs))
 }
 
 func tId(t *testing.T) {
@@ -50,8 +53,17 @@ func tId(t *testing.T) {
 		t.Errorf("client.Id(0) error(%v)", err)
 		t.FailNow()
 	}
+	fmt.Printf("id %d\n", id)
 	t.Logf("id %d", id)
-	client.Close()
+	time.Sleep(10 * time.Second)
+	id, err = client.Id(0)
+	if err != nil {
+		t.Errorf("client.Id(0) error(%v)", err)
+		t.FailNow()
+	}
+	fmt.Printf("id %d\n", id)
+	t.Logf("id %d", id)
+	time.Sleep(10 * time.Second)
 }
 
 func TestClient(t *testing.T) {

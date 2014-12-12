@@ -9,37 +9,40 @@ import (
 	"math/rand"
 	"net/rpc"
 	"path"
+	"strconv"
 	"time"
 )
 
 const (
-	zkTimeout           = 30 * time.Second
-	rpcClientPingSleep  = 1 * time.Second // rpc client ping need sleep
-	rpcClientRetrySleep = 1 * time.Second // rpc client retry connect need sleep
+	zkTimeout           = 30 * time.Second // zk connect timeout
+	zkNodeDelayChild    = 3 * time.Second  // zk node delay get children
+	rpcClientPingSleep  = 1 * time.Second  // rpc client ping need sleep
+	rpcClientRetrySleep = 1 * time.Second  // rpc client retry connect need sleep
 
 	RPCPing   = "SnowflakeRPC.Ping"
 	RPCNextId = "SnowflakeRPC.NextId"
 )
 
 var (
-	ErrNoChild      = errors.New("zk: children is nil")
-	ErrNodeNotExist = errors.New("zk: node not exist")
-	ErrNoRpcClient  = errors.New("rpc: no rpc client service")
+	ErrNoRpcClient = errors.New("rpc: no rpc client service")
 
 	zkConn *zk.Conn // zk connect
 )
 
 // Client is gosnowfalke client.
 type Client struct {
-	reStop    bool
 	zkServers []string
 	zkPath    string
-	clients   []*rpc.Client
+	clientMap map[string][]*rpc.Client // key is workerId
 }
 
 // NewClient new a gosnowfalke client.
 func NewClient(zkServers []string, zkPath string) *Client {
-	return &Client{zkServers: zkServers, zkPath: zkPath}
+	return &Client{
+		zkServers: zkServers,
+		zkPath:    zkPath,
+		clientMap: make(map[string][]*rpc.Client),
+	}
 }
 
 // Dial connects to an RPC server at the specified network address from zk.
@@ -48,14 +51,14 @@ func (c *Client) Dial() (err error) {
 		log.Error("c.initZK error(%v)", err)
 		return err
 	}
-	go c.watchNodes()
+	c.watchWorkers()
 	return nil
 }
 
 // Id generate a snowflake id.
 func (c *Client) Id(workerId int64) (int64, error) {
 	id := int64(0)
-	client := c.getRClient()
+	client := c.getRClient(workerId)
 	if client == nil {
 		return 0, ErrNoRpcClient
 	}
@@ -68,10 +71,15 @@ func (c *Client) Id(workerId int64) (int64, error) {
 
 // Close close all rpc client.
 func (c *Client) Close() {
-	c.reStop = true
-	for _, client := range c.clients {
-		if err := client.Close(); err != nil {
-			log.Error("client.Close() error(%v)", err)
+	for _, clients := range c.clientMap {
+		for n, client := range clients {
+			if client == nil {
+				log.Info("client is nil %d", n)
+				continue
+			}
+			if err := client.Close(); err != nil {
+				log.Error("client.Close() error(%v)", err)
+			}
 		}
 	}
 }
@@ -87,86 +95,81 @@ func (c *Client) initZK() error {
 	go func() {
 		for {
 			event := <-session
-			log.Info("zookeeper get a event: %s", event.State.String())
+			log.Info("zk connect get a event: %s", event.Type.String())
 		}
 	}()
 	return nil
 }
 
 // getRClient get a rand rpc client.
-func (c *Client) getRClient() *rpc.Client {
-	if len(c.clients) == 0 {
-		return nil
+func (c *Client) getRClient(workerId int64) *rpc.Client {
+	clients, ok := c.clientMap[strconv.FormatInt(workerId, 10)]
+	if ok && len(clients) > 0 {
+		n := rand.Intn(len(clients))
+		return clients[n]
 	}
-	n := rand.Intn(len(c.clients))
-	return c.clients[n]
+	return nil
 }
 
-// getChildrenWatch get zk path children and watch event.
-func (c *Client) getChildrenWatch() (nodes []string, watch <-chan zk.Event, err error) {
-	nodes, stat, watch, err := zkConn.ChildrenW(c.zkPath)
+// watchWorkers watch workers.
+func (c *Client) watchWorkers() {
+	workers, _, err := zkConn.Children(c.zkPath)
 	if err != nil {
+		log.Error("zkConn.Children(%s) error(%v)", c.zkPath, err)
 		return
 	}
-	if stat == nil {
-		err = ErrNodeNotExist
-		return
+	for _, worker := range workers {
+		go c.workerHandler(worker)
 	}
-	if len(nodes) == 0 {
-		err = ErrNoChild
-		return
-	}
-	return
 }
 
-// watchNodes watch node change.
-func (c *Client) watchNodes() {
+// workerHandler handle the node change.
+func (c *Client) workerHandler(worker string) {
 	for {
-		nodes, watch, err := c.getChildrenWatch()
+		rpcs, _, watch, err := zkConn.ChildrenW(path.Join(c.zkPath, worker))
 		if err != nil {
-			log.Error("c.getChildrenWatch() error(%v)", err)
+			log.Error("zkConn.ChildrenW(%s) error(%v)", path.Join(c.zkPath, worker), err)
+			time.Sleep(zkNodeDelaySleep)
 			continue
 		}
-		watchPath := path.Join(c.zkPath, nodes[0])
-		nodes, _, err = zkConn.Children(watchPath)
-		if err != nil {
-			log.Error("zkConn.Children(%s) error(%v)", watchPath, err)
+		if len(rpcs) == 0 {
+			log.Error("zkConn.ChildrenW(%s) error(%v)", path.Join(c.zkPath, worker), err)
+			time.Sleep(zkNodeDelaySleep)
 			continue
 		}
-		// first is leader
-		// node := nodes[0]
-		c.eventHandler(path.Join(watchPath, nodes[0]))
-		event := <-watch
-		log.Info("zk path: \"%s\" receive a event %v", c.zkPath, event)
-	}
-}
-
-// eventHandler handle the node change.
-func (c *Client) eventHandler(npath string) {
-	bs, _, err := zkConn.Get(npath)
-	if err != nil {
-		log.Error("zkConn.Get(%s) error(%v)", npath, err)
-		return
-	}
-	peer := &sf.Peer{}
-	err = json.Unmarshal(bs, peer)
-	if err != nil {
-		log.Error("json.Unmarshal(%s, peer) error(%v)", string(bs), err)
-		return
-	}
-	var clt *rpc.Client
-	for _, addr := range peer.RPC {
-		if clt, err = rpc.Dial("tcp", addr); err != nil {
-			log.Error("rpc.Dial(tcp, %s) error(%v)", addr, err)
+		// rpcs[0]: first is leader
+		bs, _, err := zkConn.Get(path.Join(c.zkPath, worker, rpcs[0]))
+		if err != nil {
+			log.Error("zkConn.Get(%s) error(%v)", path.Join(c.zkPath, worker, rpcs[0]), err)
 			return
 		}
-		c.clients = append(c.clients, clt)
-		go c.retryClient(clt, addr)
+		peer := &sf.Peer{}
+		err = json.Unmarshal(bs, peer)
+		if err != nil {
+			log.Error("json.Unmarshal(%s, peer) error(%v)", string(bs), err)
+			return
+		}
+		tmpClients := make([]*rpc.Client, len(peer.RPC))
+		stop := make(chan bool)
+		var clt *rpc.Client
+		for _, addr := range peer.RPC {
+			if clt, err = rpc.Dial("tcp", addr); err != nil {
+				log.Error("rpc.Dial(tcp, %s) error(%v)", addr, err)
+				return
+			}
+			tmpClients = append(tmpClients, clt)
+			go c.pingAndRetry(stop, clt, addr)
+		}
+		c.clientMap[worker] = tmpClients
+		log.Info("worker rpc client initd worker(%s)", worker)
+		event := <-watch
+		close(stop)
+		log.Error("zk node(%s) changed %s", path.Join(c.zkPath, worker), event.Type.String())
 	}
 }
 
-// retryClient re connect rpc when has error.
-func (c *Client) retryClient(client *rpc.Client, addr string) {
+// pingAndRetry ping the rpc connect and re connect when has an error.
+func (c *Client) pingAndRetry(stop <-chan bool, client *rpc.Client, addr string) {
 	defer func() {
 		if err := client.Close(); err != nil {
 			log.Error("client.Close() error(%v)", err)
@@ -179,12 +182,14 @@ func (c *Client) retryClient(client *rpc.Client, addr string) {
 		tmp    *rpc.Client
 	)
 	for {
-		if c.reStop {
+		select {
+		case <-stop:
 			return
+		default:
 		}
 		if !failed {
 			if err = client.Call(RPCPing, 0, &status); err != nil {
-				log.Error("client.Call(ping) error(%v)", err)
+				log.Error("client.Call(%s) error(%v)", RPCPing, err)
 				failed = true
 				continue
 			} else {
@@ -200,6 +205,6 @@ func (c *Client) retryClient(client *rpc.Client, addr string) {
 		}
 		client = tmp
 		failed = false
-		log.Info("SnowflakeRPC reconnect %s ok", addr)
+		log.Info("client reconnect %s ok", addr)
 	}
 }
