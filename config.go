@@ -36,6 +36,7 @@ type Config struct {
 	Log          string        `goconf:"base:log"`
 	MaxProc      int           `goconf:"base:maxproc"`
 	RPCBind      []string      `goconf:"base:rpc.bind:,"`
+	ThriftBind   []string      `goconf:"base:thrift.bind:,"`
 	StatBind     []string      `goconf:"base:stat.bind:,"`
 	PprofBind    []string      `goconf:"base:pprof.bind:,"`
 	DatacenterId int64         `goconf:"snowflake:datacenter"`
@@ -57,6 +58,7 @@ func InitConfig() (err error) {
 		Log:          "./log/xml",
 		MaxProc:      runtime.NumCPU(),
 		RPCBind:      []string{"localhost:8080"},
+		ThriftBind:   []string{"localhost:8081"},
 		DatacenterId: 0,
 		WorkerId:     []int64{0},
 		ZKAddr:       []string{"localhost:2181"},

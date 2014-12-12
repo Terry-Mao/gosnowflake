@@ -18,20 +18,53 @@ package main
 
 import (
 	log "code.google.com/p/log4go"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/samuel/go-zookeeper/zk"
 	"net/rpc"
 	"strconv"
-	"strings"
 	"time"
 )
 
+/*
+   dataCenter:1
+   zookeeper
+   ============
+   /gosnowflake-servers/
+       .../workerId/
+       .../1/ # watcher
+            .../ephemeral|sequence
+            .../1 # leader
+            .../2 # standby
+       .../2/
+            .../1 # leader
+       .../3/
+            .../1 # leader
+
+    1. peers: get all worker path's children, such as /gosnowflake-servers/1/1.
+    2. SanityCheckPeers: check current process with all peers.
+    3. RegWorkerId: register current process as a standby or leader, this will
+       cause all watchers receive a node add event then start leader selection.
+       if node = leader then ignore
+       else init rpc
+    4. when process exit, the zk ephemeral node will disappear, then trigger a
+       node del event to all watchers, start leader selection.
+       if node = leader then ignore
+       else if node != leader then init rpc
+       else if don't exist any node then retry wait node add event.
+
+*/
+
 const (
-	regRetryTimes     = 3
-	regRetrySecond    = 1 * time.Second
 	timestampMaxDelay = int64(10 * time.Second)
 )
+
+// Peer store data in zookeeper.
+type Peer struct {
+	RPC    []string `json:"rpc"`
+	Thrift []string `json:"thrift"`
+}
 
 var (
 	zkConn *zk.Conn
@@ -54,33 +87,35 @@ func InitZK() error {
 	return nil
 }
 
-// RegWorkerId register the workerid in zookeeper, check exists or not to avoid the duplicate workerid.
-func RegWorkerId(workerId int64) error {
+// RegWorkerId as a leader worker or a standby worker.
+func RegWorkerId(workerId int64) (err error) {
 	log.Info("trying to claim workerId: %d", workerId)
-	zkPath := fmt.Sprintf("%s/%d", MyConf.ZKPath, workerId)
-	// retry
-	for i := 0; i < regRetryTimes; i++ {
-		_, err := zkConn.Create(zkPath, []byte(strings.Join(MyConf.RPCBind, ",")), zk.FlagEphemeral, zk.WorldACL(zk.PermAll))
-		if err != nil {
-			if err == zk.ErrNodeExists {
-				log.Warn("zk.create(\"%s\") exists", zkPath)
-				time.Sleep(regRetrySecond)
-			} else {
-				log.Error("zk.create(\"%s\") error(%v)", zkPath, err)
-				return err
-			}
+	workerIdPath := fmt.Sprintf("%s/%d", MyConf.ZKPath, workerId)
+	if _, err = zkConn.Create(workerIdPath, []byte(""), 0, zk.WorldACL(zk.PermAll)); err != nil {
+		if err == zk.ErrNodeExists {
+			log.Warn("zk.create(\"%s\") exists", workerIdPath)
 		} else {
-			return nil
+			log.Error("zk.create(\"%s\") error(%v)", workerIdPath, err)
+			return
 		}
 	}
-	return errors.New(fmt.Sprintf("workerId: %d register error", workerId))
+	d, err := json.Marshal(&Peer{RPC: MyConf.RPCBind, Thrift: MyConf.ThriftBind})
+	if err != nil {
+		log.Error("json.Marshal() error(%v)", err)
+		return
+	}
+	workerIdPath += "/"
+	if _, err = zkConn.Create(workerIdPath, d, zk.FlagEphemeral|zk.FlagSequence, zk.WorldACL(zk.PermAll)); err != nil {
+		log.Error("zk.create(\"%s\") error(%v)", workerIdPath, err)
+		return
+	}
+	return
 }
 
-// peers get workers all children in zookeeper.
-func peers() (map[int][]string, error) {
+// getPeers get workers all children in zookeeper.
+func getPeers() (map[int][]*Peer, error) {
 	// try create ZKPath
-	_, err := zkConn.Create(MyConf.ZKPath, []byte(""), 0, zk.WorldACL(zk.PermAll))
-	if err != nil {
+	if _, err := zkConn.Create(MyConf.ZKPath, []byte(""), 0, zk.WorldACL(zk.PermAll)); err != nil {
 		if err == zk.ErrNodeExists {
 			log.Warn("zk.create(\"%s\") exists", MyConf.ZKPath)
 		} else {
@@ -88,73 +123,94 @@ func peers() (map[int][]string, error) {
 			return nil, err
 		}
 	}
-	// fetch all nodes
+	// get all workers
 	workers, _, err := zkConn.Children(MyConf.ZKPath)
 	if err != nil {
 		log.Error("zk.Get(\"%s\") error(%v)", MyConf.ZKPath, err)
 		return nil, err
 	}
-	res := make(map[int][]string, len(workers))
+	res := make(map[int][]*Peer, len(workers))
 	for _, worker := range workers {
 		id, err := strconv.Atoi(worker)
 		if err != nil {
 			log.Error("strconv.Atoi(\"%s\") error(%v)", worker, err)
 			return nil, err
 		}
-		// get info
-		zkPath := fmt.Sprintf("%s/%s", MyConf.ZKPath, worker)
-		d, _, err := zkConn.Get(zkPath)
-		if err != nil {
-			log.Error("zk.Get(\"%s\") error(%v)", zkPath, err)
-			return nil, err
+		workerIdPath := fmt.Sprintf("%s/%s", MyConf.ZKPath, worker)
+		// get all worker's nodes
+		nodes, _, err := zkConn.Children(workerIdPath)
+		for _, node := range nodes {
+			nodePath := fmt.Sprintf("%s/%s", workerIdPath, node)
+			// get golang rpc & thrift address
+			d, _, err := zkConn.Get(nodePath)
+			if err != nil {
+				log.Error("zk.Get(\"%s\") error(%v)", nodePath, err)
+				return nil, err
+			}
+			peer := &Peer{}
+			if err = json.Unmarshal(d, peer); err != nil {
+				log.Error("json.Unmarshal(\"%s\", peer) error(%v)", d, err)
+				return nil, err
+			}
+			peers, ok := res[id]
+			if !ok {
+				peers = []*Peer{peer}
+			} else {
+				peers = append(peers, peer)
+			}
+			res[id] = peers
 		}
-		res[id] = strings.Split(string(d), ",")
 	}
 	return res, nil
 }
 
-// sanityCheckPeers check the zookeeper datacenterId and all nodes time.
+// SanityCheckPeers check the zookeeper datacenterId and all nodes time.
 func SanityCheckPeers() error {
-	allPeers, err := peers()
+	peers, err := getPeers()
 	if err != nil {
-		log.Error("peers() error(%v)", err)
 		return err
 	}
-	if len(allPeers) == 0 {
+	if len(peers) == 0 {
 		return nil
 	}
 	timestamps := int64(0)
 	timestamp := int64(0)
 	datacenterId := int64(0)
 	peerCount := int64(0)
-	for id, addrs := range allPeers {
-		if len(addrs) == 0 {
-			log.Warn("peers: %d don't have any address", id)
-			continue
+	for id, workers := range peers {
+		for _, peer := range workers {
+			// rpc or thrift call
+			if len(peer.RPC) > 0 {
+				// golang rpc call
+				cli, err := rpc.Dial("tcp", peer.RPC[0])
+				if err != nil {
+					log.Error("rpc.Dial(\"tcp\", \"%s\") error(%v)", peer.RPC[0])
+					return err
+				}
+				defer cli.Close()
+				if err = cli.Call("SnowflakeRPC.DatacenterId", 0, &datacenterId); err != nil {
+					log.Error("rpc.Call(\"SnowflakeRPC.DatacenterId\", 0) error(%v)", err)
+					return err
+				}
+				if err = cli.Call("SnowflakeRPC.Timestamp", 0, &timestamp); err != nil {
+					log.Error("rpc.Call(\"SnowflakeRPC.Timestamp\", 0) error(%v)", err)
+					return err
+				}
+			} else if len(peer.Thrift) > 0 {
+				// TODO thrift call
+			} else {
+				log.Error("workerId: %d don't have any rpc address", id)
+				return errors.New("workerId no rpc")
+			}
+			// check datacenterid
+			if datacenterId != MyConf.DatacenterId {
+				log.Error("workerId: %d has datacenterId %d, but ours is %d", id, datacenterId, MyConf.DatacenterId)
+				return errors.New("Datacenter id insanity")
+			}
+			// add timestamps
+			timestamps += timestamp
+			peerCount++
 		}
-		// use first addr
-		cli, err := rpc.Dial("tcp", addrs[0])
-		if err != nil {
-			log.Error("rpc.Dial(\"tcp\", \"%s\") error(%v)", addrs[0])
-			return err
-		}
-		defer cli.Close()
-		if err = cli.Call("SnowflakeRPC.DatacenterId", 0, &datacenterId); err != nil {
-			log.Error("rpc.Call(\"SnowflakeRPC.DatacenterId\", 0) error(%v)", err)
-			return err
-		}
-		// check datacenterid
-		if datacenterId != MyConf.DatacenterId {
-			log.Error("worker at %s has datacenterId %d, but ours is %d", addrs[0], datacenterId, MyConf.DatacenterId)
-			return errors.New("Datacenter id insanity")
-		}
-		if err = cli.Call("SnowflakeRPC.Timestamp", 0, &timestamp); err != nil {
-			log.Error("rpc.Call(\"SnowflakeRPC.Timestamp\", 0) error(%v)", err)
-			return err
-		}
-		// add timestamps
-		timestamps += timestamp
-		peerCount++
 	}
 	// check 10s
 	// calc avg timestamps
