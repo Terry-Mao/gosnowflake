@@ -184,7 +184,7 @@ func SanityCheckPeers() error {
 				// golang rpc call
 				cli, err := rpc.Dial("tcp", peer.RPC[0])
 				if err != nil {
-					log.Error("rpc.Dial(\"tcp\", \"%s\") error(%v)", peer.RPC[0])
+					log.Error("rpc.Dial(\"tcp\", \"%s\") error(%v)", peer.RPC[0], err)
 					return err
 				}
 				defer cli.Close()
