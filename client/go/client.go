@@ -105,10 +105,10 @@ func (c *Client) Id() (id int64, err error) {
 	return
 }
 
-// Close close the client all rpc connections.
-func (c *Client) Close() {
+// closeRpc close rpc resource.
+func closeRpc(clients []*rpc.Client, stops []chan bool) {
 	// rpc
-	for _, client := range c.clients {
+	for _, client := range clients {
 		if client != nil {
 			if err := client.Close(); err != nil {
 				log.Error("client.Close() error(%v)", err)
@@ -116,11 +116,16 @@ func (c *Client) Close() {
 		}
 	}
 	// ping&retry goroutine
-	for _, stop := range c.stops {
+	for _, stop := range stops {
 		if stop != nil {
 			close(stop)
 		}
 	}
+}
+
+// Close close the client all rpc connections.
+func (c *Client) Close() {
+	closeRpc(c.clients, c.stops)
 }
 
 // Destroy destroy the client from global client cache.
@@ -194,13 +199,17 @@ func (c *Client) watchWorkerId(workerId int64, workerIdStr string) {
 			tmpStops[i] = stop
 			go c.pingAndRetry(stop, clt, addr)
 		}
-		// if exist old clients, free resource
-		if c.clients != nil {
-			c.Close()
-		}
+		// old rpc clients
+		oldClients := c.clients
+		oldStops := c.stops
 		// atomic replace variable
+		c.leader = newLeader
 		c.clients = tmpClients
 		c.stops = tmpStops
+		// if exist, free resource
+		if oldClients != nil {
+			closeRpc(oldClients, oldStops)
+		}
 		// new zk event
 		event := <-watch
 		log.Error("zk node(\"%s\") changed %s", workerIdPath, event.Type.String())
