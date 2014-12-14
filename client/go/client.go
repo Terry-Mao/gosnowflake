@@ -65,7 +65,7 @@ func Init(zkServers []string, zkPath string, zkTimeout time.Duration) (err error
 type Client struct {
 	workerId int64
 	clients  []*rpc.Client // key is workerId
-	stops    []chan bool
+	stop     chan bool
 	leader   string
 }
 
@@ -106,7 +106,7 @@ func (c *Client) Id() (id int64, err error) {
 }
 
 // closeRpc close rpc resource.
-func closeRpc(clients []*rpc.Client, stops []chan bool) {
+func closeRpc(clients []*rpc.Client, stop chan bool) {
 	// rpc
 	for _, client := range clients {
 		if client != nil {
@@ -116,16 +116,14 @@ func closeRpc(clients []*rpc.Client, stops []chan bool) {
 		}
 	}
 	// ping&retry goroutine
-	for _, stop := range stops {
-		if stop != nil {
-			close(stop)
-		}
+	if stop != nil {
+		close(stop)
 	}
 }
 
 // Close close the client all rpc connections.
 func (c *Client) Close() {
-	closeRpc(c.clients, c.stops)
+	closeRpc(c.clients, c.stop)
 }
 
 // Destroy destroy the client from global client cache.
@@ -167,48 +165,45 @@ func (c *Client) watchWorkerId(workerId int64, workerIdStr string) {
 		newLeader := rpcs[0]
 		if c.leader == newLeader {
 			log.Info("workerId: %s add a new standby gosnowflake node", workerIdStr)
-			continue
 		} else {
 			log.Info("workerId: %s oldLeader: \"%s\", newLeader: \"%s\" not equals, continue leader selection", workerIdStr, c.leader, newLeader)
-		}
-		// get new leader info
-		workerNodePath := path.Join(zkPath, workerIdStr, newLeader)
-		bs, _, err := zkConn.Get(workerNodePath)
-		if err != nil {
-			log.Error("zkConn.Get(%s) error(%v)", workerNodePath, err)
-			time.Sleep(zkNodeDelaySleep)
-			continue
-		}
-		peer := &Peer{}
-		if err = json.Unmarshal(bs, peer); err != nil {
-			log.Error("json.Unmarshal(%s, peer) error(%v)", string(bs), err)
-			time.Sleep(zkNodeDelaySleep)
-			continue
-		}
-		// init rpc
-		tmpClients := make([]*rpc.Client, len(peer.RPC))
-		tmpStops := make([]chan bool, len(peer.RPC))
-		for i, addr := range peer.RPC {
-			clt, err := rpc.Dial("tcp", addr)
+			// get new leader info
+			workerNodePath := path.Join(zkPath, workerIdStr, newLeader)
+			bs, _, err := zkConn.Get(workerNodePath)
 			if err != nil {
-				log.Error("rpc.Dial(tcp, \"%s\") error(%v)", addr, err)
+				log.Error("zkConn.Get(%s) error(%v)", workerNodePath, err)
+				time.Sleep(zkNodeDelaySleep)
 				continue
 			}
-			stop := make(chan bool)
-			tmpClients[i] = clt
-			tmpStops[i] = stop
-			go c.pingAndRetry(stop, clt, addr)
-		}
-		// old rpc clients
-		oldClients := c.clients
-		oldStops := c.stops
-		// atomic replace variable
-		c.leader = newLeader
-		c.clients = tmpClients
-		c.stops = tmpStops
-		// if exist, free resource
-		if oldClients != nil {
-			closeRpc(oldClients, oldStops)
+			peer := &Peer{}
+			if err = json.Unmarshal(bs, peer); err != nil {
+				log.Error("json.Unmarshal(%s, peer) error(%v)", string(bs), err)
+				time.Sleep(zkNodeDelaySleep)
+				continue
+			}
+			// init rpc
+			tmpClients := make([]*rpc.Client, len(peer.RPC))
+			tmpStop := make(chan bool, 1)
+			for i, addr := range peer.RPC {
+				clt, err := rpc.Dial("tcp", addr)
+				if err != nil {
+					log.Error("rpc.Dial(tcp, \"%s\") error(%v)", addr, err)
+					continue
+				}
+				tmpClients[i] = clt
+				go c.pingAndRetry(tmpStop, clt, addr)
+			}
+			// old rpc clients
+			oldClients := c.clients
+			oldStop := c.stop
+			// atomic replace variable
+			c.leader = newLeader
+			c.clients = tmpClients
+			c.stop = tmpStop
+			// if exist, free resource
+			if oldClients != nil {
+				closeRpc(oldClients, oldStop)
+			}
 		}
 		// new zk event
 		event := <-watch
