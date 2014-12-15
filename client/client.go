@@ -121,13 +121,9 @@ func closeRpc(clients []*rpc.Client, stop chan bool) {
 	}
 }
 
-// Close close the client all rpc connections.
+// Close destroy the client from global client cache.
 func (c *Client) Close() {
 	closeRpc(c.clients, c.stop)
-}
-
-// Destroy destroy the client from global client cache.
-func (c *Client) Destroy() {
 	mutex.Lock()
 	defer mutex.Unlock()
 	delete(workerIdMap, c.workerId)

@@ -24,11 +24,6 @@ func Test(t *testing.T) {
 	}
 	c.Close()
 	// check global cache map
-	if _, ok := workerIdMap[MyConf.WorkerId]; !ok {
-		t.Error("no workerId")
-	}
-	c.Destroy()
-	// check global cache map
 	if _, ok := workerIdMap[MyConf.WorkerId]; ok {
 		t.Error("workerId exists")
 	}
