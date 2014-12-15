@@ -33,19 +33,19 @@ var (
 	zkServers []string
 	zkTimeout time.Duration
 	// worker
-	workerIdMap map[int64]*Client
+	workerIdMap = map[int64]*Client{}
 )
 
 // Init init the gosnowflake client.
-func Init(zkServers []string, zkPath string, zkTimeout time.Duration) (err error) {
+func Init(zservers []string, zpath string, ztimeout time.Duration) (err error) {
 	mutex.Lock()
 	defer mutex.Unlock()
 	if zkConn != nil {
 		return
 	}
-	zkPath = zkPath
-	zkServers = zkServers
-	zkTimeout = zkTimeout
+	zkPath = zpath
+	zkServers = zservers
+	zkTimeout = ztimeout
 	conn, session, err := zk.Connect(zkServers, zkTimeout)
 	if err != nil {
 		log.Error("zk.Connect(\"%v\", %d) error(%v)", zkServers, zkTimeout, err)
@@ -148,6 +148,7 @@ func (c *Client) client() (*rpc.Client, error) {
 // watchWorkerId watch the zk node change.
 func (c *Client) watchWorkerId(workerId int64, workerIdStr string) {
 	workerIdPath := path.Join(zkPath, workerIdStr)
+	log.Debug("workerIdPath: %s", workerIdPath)
 	for {
 		rpcs, _, watch, err := zkConn.ChildrenW(workerIdPath)
 		if err != nil {
@@ -227,6 +228,7 @@ func (c *Client) pingAndRetry(stop <-chan bool, client *rpc.Client, addr string)
 	for {
 		select {
 		case <-stop:
+			log.Info("addr: \"%s\" pingAndRetry goroutine exit", addr)
 			return
 		default:
 		}

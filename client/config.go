@@ -1,9 +1,9 @@
-package main
+package client
 
 import (
 	"flag"
 	"github.com/Terry-Mao/goconf"
-	"github.com/golang/glog"
+	"time"
 )
 
 var (
@@ -14,8 +14,11 @@ var (
 )
 
 type Config struct {
-	RPCAddr  string `goconf:"base:rpc.addr:,"`
-	WorkerId int64  `goconf:"base:worker"`
+	RPCAddr   string        `goconf:"base:rpc.addr:,"`
+	WorkerId  int64         `goconf:"base:worker"`
+	ZKServers []string      `goconf:"zookeeper:addr:,"`
+	ZKPath    string        `goconf:"zookeeper:path"`
+	ZKTimeout time.Duration `goconf:"zookeeper:timeout:time"`
 }
 
 func init() {
@@ -25,15 +28,16 @@ func init() {
 // Init init the configuration file.
 func InitConfig() error {
 	MyConf = &Config{
-		RPCAddr:  "localhost:8080",
-		WorkerId: int64(0),
+		RPCAddr:   "localhost:8080",
+		WorkerId:  int64(0),
+		ZKServers: []string{"localhost:2181"},
+		ZKPath:    "/gosnowflake-servers",
+		ZKTimeout: time.Second * 15,
 	}
 	if err := goConf.Parse(confPath); err != nil {
-		glog.Errorf("goconf.Parse(\"%s\") error(%v)", confPath, err)
 		return err
 	}
 	if err := goConf.Unmarshal(MyConf); err != nil {
-		glog.Errorf("goconf.Unmarshall() error(%v)", err)
 		return err
 	}
 	return nil
