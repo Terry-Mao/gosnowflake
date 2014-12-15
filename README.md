@@ -194,7 +194,7 @@ defer c.Close()
 defer c.Destroy()
 time.Sleep(1 * time.Second)                                             
 id, err := c.Id()                                                       
- if err != nil {                                                         
+if err != nil {                                                         
     panic(err)
 }                                                                       
 fmt.Printf("gosnwoflake id: %d\n", id)                                  
