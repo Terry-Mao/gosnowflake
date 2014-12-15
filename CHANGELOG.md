@@ -1,6 +1,9 @@
-## Version 1.1 (pending)
+## Version 1.2 (Pennding)
+## Version 1.1 (2014-12-15)
 
 New Features:
+    - Add service failover support
+    - Add golang rpc failver support
 
 Bugfixes:
 

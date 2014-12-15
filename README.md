@@ -23,7 +23,7 @@ $ vim /etc/profile.d/golang.sh
 # export GOROOT=/usr/local/go
 # export PATH=$PATH:$GOROOT/bin
 # export GOPATH=/data/apps/go
-$ source /etc/profile.d/gopush.sh
+$ source /etc/profile.d/golang.sh
 # download the code
 $ go get -u github.com/Terry-Mao/gosnowflake
 # find the dir
@@ -37,19 +37,33 @@ $ ./gosnowflake -conf=./gosnowflake.conf
 # for help
 $ ./gosnowflake -h
 # test
-$ cd $GOPATH/src/github.com/Terry-Mao/gosnowflake/test
-$ go build
-$ ./test
+$ cd $GOPATH/src/github.com/Terry-Mao/gosnowflake/client
+$ go test -conf=./test-examples.conf
 ```
 
 ## Document
 ```sh
-[base]
-# If the master process is run as root, then gosnowflake will setuid()/setgid() 
-# to USER/GROUP. If GROUP is not specified, then gosnowflake uses the same name as 
-# USER. By default it's nobody user and nobody or nogroup group.
-# user maojian 
+# gosnowflake configuration file example
 
+# Note on units: when memory size is needed, it is possible to specify
+# it in the usual form of 1k 5GB 4M and so forth:
+#
+# 1kb => 1024 bytes
+# 1mb => 1024*1024 bytes
+# 1gb => 1024*1024*1024 bytes
+#
+# units are case insensitive so 1GB 1Gb 1gB are all the same.
+
+# Note on units: when time duration is needed, it is possible to specify
+# it in the usual form of 1s 5M 4h and so forth:
+#
+# 1s => 1000 * 1000 * 1000 nanoseconds
+# 1m => 60 seconds
+# 1h => 60 minutes
+#
+# units are case insensitive so 1h 1H are all the same.
+
+[base]
 # When running daemonized, gosnowflake writes a pid file in 
 # /tmp/gosnowflake.pid by default. You can specify a custom pid file 
 # location here.
@@ -63,15 +77,27 @@ pid /tmp/gosnowflake.pid
 
 # By default gosnowflake listens for connections from all the network interfaces
 # available on the server on 8080 port. It is possible to listen to just one or 
-# multiple interfaces using the "websocket.bind" configuration directive, 
+# multiple interfaces using the "rpc.bind" configuration directive, 
 # followed by one or more IP addresses and port.
 #
 # Examples:
 #
-# Note this directive is only support "websocket" protocol
+# Note this directive is only support "golang rpc" protocol
 # rpc.bind 192.168.1.100:8080,10.0.0.1:8080
 # rpc.bind 127.0.0.1:8080
 # rpc.bind :8080
+
+# By default gosnowflake thrift listens for connections from all the network interfaces
+# available on the server on 8080 port. It is possible to listen to just one or 
+# multiple interfaces using the "rpc.bind" configuration directive, 
+# followed by one or more IP addresses and port.
+#
+# Examples:
+#
+# Note this directive is only support "thrift" protocol
+# thrift.bind 192.168.1.100:8080,10.0.0.1:8080
+# thrift.bind 127.0.0.1:8080
+# thrift.bind :8080
 
 # This is used by gosnowflake service profiling (pprof).
 # By default gosnowflake pprof listens for connections from local interfaces on 6971
@@ -100,6 +126,9 @@ pid /tmp/gosnowflake.pid
 #  
 # Note that you must specify a directory here, not a file name.
 dir ./
+
+# Log4go configuration path
+log ./log.xml
 
 ################################## ZOOKEEPER ##################################
 [zookeeper]
@@ -135,11 +164,13 @@ path /gosnowflake-servers
 datacenter 0
 
 # register which worker, must be unique in one datacenter.
+# multiple worker id register can split by a ",".
 # Examples:
 #
 # worker 0
 # worker 0,1,2
 worker 0,1,2
+
 ```
 
 ## RPC API
@@ -155,51 +186,18 @@ worker 0,1,2
 ## Usage
 
 ```go
-package main
-
-import (
-	"fmt"
-	"net/rpc"
-    "github.com/golang/glog"
-)
-
-func main() {
-    addr := "localhost:8080"
-	cli, err := rpc.Dial("tcp", addr)
-	if err != nil {
-        glog.Errorf("rcp.Dial(\"tcp\", \"%s\") error(%v)", addr, err)
-        return
-	}
-	defer cli.Close()
-    // get snowflake id by workerId
-	id := int64(0)
-	workerId := 0
-	if err = cli.Call("SnowflakeRPC.NextId", workerId, &id); err != nil {
-        glog.Errorf("rpc.Call(\"SnowflakeRPC.NextId\", %d, &id) error(%v)", workerId, err)
-        return
-	}
-	glog.Infof("nextid: %d\n", id)
-    // get datacenter id
-    datacenterId := int64(0)
-	if err = cli.Call("SnowflakeRPC.DatacenterId", 0, &datacenterId); err != nil {
-        glog.Errorf("rpc.Call(\"SnowflakeRPC.DatacenterId\", 0, &datacenterId) error(%v)", err)
-        return
-	}
-	glog.Infof("datacenterid: %d\n", datacenterId)
-    // get current timestamp
-    timestamp := int64(0)
-	if err = cli.Call("SnowflakeRPC.Timestamp", 0, &timestamp); err != nil {
-        glog.Errorf("rpc.Call(\"SnowflakeRPC.Timestamp\", 0, &timestamp) error(%v)", err)
-        return
-	}
-	glog.Infof("timestamp: %d\n", timestamp)
-	status := 0
-	if err = cli.Call("SnowflakeRPC.Ping", 0, &status); err != nil {
-		glog.Errorf("rpc.Call(\"SnowflakeRPC.Ping\", 0, &status) error(%v)", err)
-		return
-	}
-	glog.Infof("status: %d\n", status)
+if err := Init(MyConf.ZKServers, MyConf.ZKPath, MyConf.ZKTimeout); err != nil {
+    panic(err)
 }
+c := NewClient(MyConf.WorkerId)                                             
+defer c.Close()
+defer c.Destroy()
+time.Sleep(1 * time.Second)                                             
+id, err := c.Id()                                                       
+ if err != nil {                                                         
+    panic(err)
+}                                                                       
+fmt.Printf("gosnwoflake id: %d\n", id)                                  
 ```
 
 ## Highly Available
@@ -207,6 +205,15 @@ func main() {
 use `heartbeat` or `keepalived` apply a VIP for the client.
 
 a easy keepalived configration: [here](https://github.com/Terry-Mao/gosnowflake/tree/master/keepalived)
+
+(1.0.1)
+
+
+use zookeeper for client failover
+
+golang client sdk: [here](https://github.com/Terry-Mao/gosnowflake/tree/master/client)
+
+(1.1)
 
 ## LICENSE
 
