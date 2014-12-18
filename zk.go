@@ -214,7 +214,7 @@ func SanityCheckPeers() error {
 	}
 	// check 10s
 	// calc avg timestamps
-	now := time.Now().UnixNano()
+	now := time.Now().Unix()
 	avg := int64(timestamps / peerCount)
 	log.Debug("timestamps: %d, peer: %d, avg: %d, now - avg: %d, maxdelay: %d", timestamps, peerCount, avg, now-avg, timestampMaxDelay)
 	if now-avg > timestampMaxDelay {

@@ -104,9 +104,9 @@ func (s *SnowflakeRPC) DatacenterId(ignore int, dataCenterId *int64) error {
 	return nil
 }
 
-// Timestamp return the service current unixnano
+// Timestamp return the service current unix seconds.
 func (s *SnowflakeRPC) Timestamp(ignore int, timestamp *int64) error {
-	*timestamp = time.Now().UnixNano()
+	*timestamp = time.Now().Unix()
 	return nil
 }
 
