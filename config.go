@@ -1,4 +1,4 @@
-// Copyright © 2014 Terry Mao, LiuDing All rights reserved.
+// Copyright © 2014 Terry Mao All rights reserved.
 // This file is part of gosnowflake.
 
 // gosnowflake is free software: you can redistribute it and/or modify
