@@ -2,8 +2,10 @@
 ## Version 1.2 
 
 New Features:
+
     - Add NextIds for get mutiple ids.
     - Add "start"(start timestamp) config for calculating snowflake id.
+
 
 Bugfixes:
 
@@ -12,8 +14,10 @@ Bugfixes:
 ## Version 1.1 (2014-12-15)
 
 New Features:
+
     - Add service failover support
     - Add golang rpc failver support
+
 
 Bugfixes:
 
