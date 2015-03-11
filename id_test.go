@@ -22,7 +22,7 @@ import (
 )
 
 func TestID(t *testing.T) {
-	id, err := NewIdWorker(0, 0)
+	id, err := NewIdWorker(0, 0, twepoch)
 	if err != nil {
 		log.Error("NewIdWorker(0, 0) error(%v)", err)
 		t.FailNow()
@@ -36,7 +36,7 @@ func TestID(t *testing.T) {
 }
 
 func BenchmarkID(b *testing.B) {
-	id, err := NewIdWorker(0, 0)
+	id, err := NewIdWorker(0, 0, twepoch)
 	if err != nil {
 		log.Error("NewIdWorker(0, 0) error(%v)", err)
 		b.FailNow()

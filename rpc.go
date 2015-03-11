@@ -20,9 +20,14 @@ import (
 	log "code.google.com/p/log4go"
 	"errors"
 	"fmt"
+	myrpc "github.com/Terry-Mao/gosnowflake/rpc"
 	"net"
 	"net/rpc"
 	"time"
+)
+
+const (
+	maxNextIdsNum = 100
 )
 
 type SnowflakeRPC struct {
@@ -41,7 +46,7 @@ func InitRPC() error {
 			log.Error("init workerId: %d already exists", workerId)
 			return fmt.Errorf("init workerId: %d exists", workerId)
 		}
-		idWorker, err := NewIdWorker(workerId, MyConf.DatacenterId)
+		idWorker, err := NewIdWorker(workerId, MyConf.DatacenterId, MyConf.Twepoch)
 		if err != nil {
 			log.Error("NewIdWorker(%d, %d) error(%v)", MyConf.DatacenterId, workerId)
 			return err
@@ -94,6 +99,37 @@ func (s *SnowflakeRPC) NextId(workerId int64, id *int64) error {
 		} else {
 			*id = tid
 		}
+	}
+	return nil
+}
+
+// NextIds generate specified num ids.
+func (s *SnowflakeRPC) NextIds(args *myrpc.NextIdsArgs, ids *[]int64) error {
+	if args == nil {
+		return errors.New("args is nil")
+	}
+	if args.WorkerId > maxWorkerId || args.WorkerId < 0 {
+		log.Error("worker Id can't be greater than %d or less than 0", maxWorkerId)
+		return errors.New(fmt.Sprintf("worker Id: %d error", args.WorkerId))
+	}
+	if args.Num > maxNextIdsNum || args.Num < 0 {
+		log.Error("num can't be greater than %d or less than 0", maxNextIdsNum)
+		return errors.New(fmt.Sprintf("num: %d error", args.Num))
+	}
+	if worker := s.idWorkers[args.WorkerId]; worker == nil {
+		log.Warn("workerId: %d not register", args.WorkerId)
+		return fmt.Errorf("snowflake workerId: %d don't register in this service", args.WorkerId)
+	} else {
+		tids := make([]int64, args.Num)
+		for i := 0; i < args.Num; i++ {
+			if tid, err := worker.NextId(); err != nil {
+				log.Error("worker.NextId() error(%v)", err)
+				return err
+			} else {
+				tids[i] = tid
+			}
+		}
+		*ids = tids
 	}
 	return nil
 }

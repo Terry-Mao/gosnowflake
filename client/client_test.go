@@ -59,7 +59,12 @@ func Test(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
+		ids, err := c.Ids(5)
+		if err != nil {
+			t.Error(err)
+		}
 		fmt.Printf("gosnwoflake id: %d\n", id)
+		fmt.Printf("gosnwoflake ids: %d\n", ids)
 	}
 	c.Close()
 	// check global cache map

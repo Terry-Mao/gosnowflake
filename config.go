@@ -41,9 +41,11 @@ type Config struct {
 	PprofBind    []string      `goconf:"base:pprof.bind:,"`
 	DatacenterId int64         `goconf:"snowflake:datacenter"`
 	WorkerId     []int64       `goconf:"snowflake:worker"`
+	Start        string        `goconf:"snowflake:start"`
 	ZKAddr       []string      `goconf:"zookeeper:addr"`
 	ZKTimeout    time.Duration `goconf:"zookeeper:timeout:time`
 	ZKPath       string        `goconf:"zookeeper:path"`
+	Twepoch      int64
 }
 
 func init() {
@@ -52,6 +54,7 @@ func init() {
 
 // Init init the configuration file.
 func InitConfig() (err error) {
+	var twepoch time.Time
 	MyConf = &Config{
 		PidFile:      "/tmp/gosnowflake.pid",
 		Dir:          "/dev/null",
@@ -61,6 +64,7 @@ func InitConfig() (err error) {
 		ThriftBind:   []string{"localhost:8081"},
 		DatacenterId: 0,
 		WorkerId:     []int64{0},
+		Start:        "2010-11-04 09:42:54",
 		ZKAddr:       []string{"localhost:2181"},
 		ZKTimeout:    time.Second * 15,
 		ZKPath:       "/gosnowflake-servers",
@@ -70,6 +74,11 @@ func InitConfig() (err error) {
 	}
 	if err = goConf.Unmarshal(MyConf); err != nil {
 		return
+	}
+	if twepoch, err = time.Parse("2006-01-02 15:04:05", MyConf.Start); err != nil {
+		return
+	} else {
+		MyConf.Twepoch = twepoch.UnixNano() / int64(time.Millisecond)
 	}
 	return
 }

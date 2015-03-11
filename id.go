@@ -43,12 +43,13 @@ type IdWorker struct {
 	sequence      int64
 	lastTimestamp int64
 	workerId      int64
+	twepoch       int64
 	datacenterId  int64
 	mutex         *sync.Mutex
 }
 
 // NewIdWorker new a snowflake id generator object.
-func NewIdWorker(workerId, datacenterId int64) (*IdWorker, error) {
+func NewIdWorker(workerId, datacenterId int64, twepoch int64) (*IdWorker, error) {
 	idWorker := &IdWorker{}
 	if workerId > maxWorkerId || workerId < 0 {
 		log.Error("worker Id can't be greater than %d or less than 0", maxWorkerId)
@@ -62,6 +63,7 @@ func NewIdWorker(workerId, datacenterId int64) (*IdWorker, error) {
 	idWorker.datacenterId = datacenterId
 	idWorker.lastTimestamp = -1
 	idWorker.sequence = 0
+	idWorker.twepoch = twepoch
 	idWorker.mutex = &sync.Mutex{}
 	log.Debug("worker starting. timestamp left shift %d, datacenter id bits %d, worker id bits %d, sequence bits %d, workerid %d", timestampLeftShift, datacenterIdBits, workerIdBits, sequenceBits, workerId)
 	return idWorker, nil
@@ -99,5 +101,5 @@ func (id *IdWorker) NextId() (int64, error) {
 		id.sequence = 0
 	}
 	id.lastTimestamp = timestamp
-	return ((timestamp - twepoch) << timestampLeftShift) | (id.datacenterId << datacenterIdShift) | (id.workerId << workerIdShift) | id.sequence, nil
+	return ((timestamp - id.twepoch) << timestampLeftShift) | (id.datacenterId << datacenterIdShift) | (id.workerId << workerIdShift) | id.sequence, nil
 }
