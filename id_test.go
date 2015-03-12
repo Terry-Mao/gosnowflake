@@ -33,6 +33,12 @@ func TestID(t *testing.T) {
 		t.FailNow()
 	}
 	log.Info("snowflake id: %d", sid)
+	sids, err := id.NextIds(10)
+	if err != nil {
+		log.Error("id.NextId() error(%v)", err)
+		t.FailNow()
+	}
+	log.Info("snowflake ids: %v", sids)
 }
 
 func BenchmarkID(b *testing.B) {

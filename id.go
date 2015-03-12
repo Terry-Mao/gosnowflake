@@ -37,6 +37,7 @@ const (
 	datacenterIdShift  = sequenceBits + workerIdBits
 	timestampLeftShift = sequenceBits + workerIdBits + datacenterIdBits
 	sequenceMask       = -1 ^ (-1 << sequenceBits)
+	maxNextIdsNum      = 100
 )
 
 type IdWorker struct {
@@ -45,7 +46,7 @@ type IdWorker struct {
 	workerId      int64
 	twepoch       int64
 	datacenterId  int64
-	mutex         *sync.Mutex
+	mutex         sync.Mutex
 }
 
 // NewIdWorker new a snowflake id generator object.
@@ -64,7 +65,7 @@ func NewIdWorker(workerId, datacenterId int64, twepoch int64) (*IdWorker, error)
 	idWorker.lastTimestamp = -1
 	idWorker.sequence = 0
 	idWorker.twepoch = twepoch
-	idWorker.mutex = &sync.Mutex{}
+	idWorker.mutex = sync.Mutex{}
 	log.Debug("worker starting. timestamp left shift %d, datacenter id bits %d, worker id bits %d, sequence bits %d, workerid %d", timestampLeftShift, datacenterIdBits, workerIdBits, sequenceBits, workerId)
 	return idWorker, nil
 }
@@ -102,4 +103,33 @@ func (id *IdWorker) NextId() (int64, error) {
 	}
 	id.lastTimestamp = timestamp
 	return ((timestamp - id.twepoch) << timestampLeftShift) | (id.datacenterId << datacenterIdShift) | (id.workerId << workerIdShift) | id.sequence, nil
+}
+
+// NextIds get snowflake ids.
+func (id *IdWorker) NextIds(num int) ([]int64, error) {
+	if num > maxNextIdsNum || num < 0 {
+		log.Error("NextIds num can't be greater than %d or less than 0", maxNextIdsNum)
+		return nil, errors.New(fmt.Sprintf("NextIds num: %d error", num))
+	}
+	ids := make([]int64, num)
+	id.mutex.Lock()
+	defer id.mutex.Unlock()
+	for i := 0; i < num; i++ {
+		timestamp := timeGen()
+		if timestamp < id.lastTimestamp {
+			log.Error("clock is moving backwards.  Rejecting requests until %d.", id.lastTimestamp)
+			return nil, errors.New(fmt.Sprintf("Clock moved backwards.  Refusing to generate id for %d milliseconds", id.lastTimestamp-timestamp))
+		}
+		if id.lastTimestamp == timestamp {
+			id.sequence = (id.sequence + 1) & sequenceMask
+			if id.sequence == 0 {
+				timestamp = tilNextMillis(id.lastTimestamp)
+			}
+		} else {
+			id.sequence = 0
+		}
+		id.lastTimestamp = timestamp
+		ids[i] = ((timestamp - id.twepoch) << timestampLeftShift) | (id.datacenterId << datacenterIdShift) | (id.workerId << workerIdShift) | id.sequence
+	}
+	return ids, nil
 }

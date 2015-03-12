@@ -43,8 +43,17 @@ func main() {
 		panic(err)
 	}
 	defer CloseZK()
+	// safty check
+	if err := SanityCheckPeers(); err != nil {
+		panic(err)
+	}
+	// workers
+	workers, err := NewWorkers()
+	if err != nil {
+		panic(err)
+	}
 	// rpc
-	if err := InitRPC(); err != nil {
+	if err := InitRPC(workers); err != nil {
 		panic(err)
 	}
 	// init signals, block wait signals
