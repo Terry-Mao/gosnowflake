@@ -25,7 +25,7 @@ import (
 )
 
 func init() {
-	flag.StringVar(&confPath, "tt", "./test.conf", " set gosnowflake config file path")
+	flag.StringVar(&confPath, "conf", "./test.conf", " set gosnowflake config file path")
 }
 
 var (
