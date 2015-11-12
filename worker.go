@@ -34,7 +34,7 @@ func NewWorkers() (Workers, error) {
 			log.Error("init workerId: %d already exists", workerId)
 			return nil, fmt.Errorf("init workerId: %d exists", workerId)
 		}
-		idWorker, err := NewIdWorker(workerId, MyConf.DatacenterId, MyConf.Twepoch)
+		idWorker, err := NewIdWorker(workerId, MyConf.DatacenterId, MyConf.Twepoch, MyConf.AtomStart)
 		if err != nil {
 			log.Error("NewIdWorker(%d, %d) error(%v)", MyConf.DatacenterId, workerId)
 			return nil, err

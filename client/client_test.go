@@ -79,8 +79,13 @@ func Test(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
+		atomId, err := c.AtomId()
+		if err != nil {
+			t.Error(err)
+		}
 		fmt.Printf("gosnwoflake id: %d\n", id)
 		fmt.Printf("gosnwoflake ids: %d\n", ids)
+		fmt.Printf("gosnwoflake atom id: %d\n", atomId)
 	}
 	c.Close()
 	// check global cache map

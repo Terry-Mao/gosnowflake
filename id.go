@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -47,10 +48,12 @@ type IdWorker struct {
 	twepoch       int64
 	datacenterId  int64
 	mutex         sync.Mutex
+
+	atomId *int64
 }
 
 // NewIdWorker new a snowflake id generator object.
-func NewIdWorker(workerId, datacenterId int64, twepoch int64) (*IdWorker, error) {
+func NewIdWorker(workerId, datacenterId, twepoch, atomStart int64) (*IdWorker, error) {
 	idWorker := &IdWorker{}
 	if workerId > maxWorkerId || workerId < 0 {
 		log.Error("worker Id can't be greater than %d or less than 0", maxWorkerId)
@@ -66,6 +69,7 @@ func NewIdWorker(workerId, datacenterId int64, twepoch int64) (*IdWorker, error)
 	idWorker.sequence = 0
 	idWorker.twepoch = twepoch
 	idWorker.mutex = sync.Mutex{}
+	idWorker.atomId = &atomStart
 	log.Debug("worker starting. timestamp left shift %d, datacenter id bits %d, worker id bits %d, sequence bits %d, workerid %d", timestampLeftShift, datacenterIdBits, workerIdBits, sequenceBits, workerId)
 	return idWorker, nil
 }
@@ -132,4 +136,9 @@ func (id *IdWorker) NextIds(num int) ([]int64, error) {
 		ids[i] = ((timestamp - id.twepoch) << timestampLeftShift) | (id.datacenterId << datacenterIdShift) | (id.workerId << workerIdShift) | id.sequence
 	}
 	return ids, nil
+}
+
+// AtomId get a atom incr id.
+func (id *IdWorker) AtomId() int64 {
+	return atomic.AddInt64(id.atomId, 1)
 }
