@@ -40,6 +40,7 @@ const (
 	RPCPing    = "SnowflakeRPC.Ping"
 	RPCNextId  = "SnowflakeRPC.NextId"
 	RPCNextIds = "SnowflakeRPC.NextIds"
+	RPCAtomId  = "SnowflakeRPC.AtomId"
 )
 
 var (
@@ -130,7 +131,19 @@ func (c *Client) Ids(num int) (ids []int64, err error) {
 		return
 	}
 	if err = client.Call(RPCNextIds, &myrpc.NextIdsArgs{WorkerId: c.workerId, Num: num}, &ids); err != nil {
-		log.Error("rpc.Call(\"%s\", %d, &id) error(%v)", RPCNextId, c.workerId, err)
+		log.Error("rpc.Call(\"%s\", %d, &id) error(%v)", RPCNextIds, c.workerId, err)
+	}
+	return
+}
+
+// AtomId atomic add id.
+func (c *Client) AtomId() (id int64, err error) {
+	client, err := c.client()
+	if err != nil {
+		return
+	}
+	if err = client.Call(RPCAtomId, c.workerId, &id); err != nil {
+		log.Error("rpc.Call(\"%s\", %d, &id) error(%v)", RPCAtomId, c.workerId, err)
 	}
 	return
 }
