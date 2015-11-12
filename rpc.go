@@ -90,6 +90,16 @@ func (s *SnowflakeRPC) NextIds(args *myrpc.NextIdsArgs, ids *[]int64) error {
 	}
 }
 
+// AtomId atomic add id.
+func (s *SnowflakeRPC) AtomId(workerId int64, id *int64) error {
+	worker, err := s.workers.Get(workerId)
+	if err != nil {
+		return err
+	}
+	*id = worker.AtomId()
+	return nil
+}
+
 // DatacenterId return the services's datacenterId.
 func (s *SnowflakeRPC) DatacenterId(ignore int, dataCenterId *int64) error {
 	*dataCenterId = MyConf.DatacenterId
