@@ -42,6 +42,7 @@ type Config struct {
 	DatacenterId int64         `goconf:"snowflake:datacenter"`
 	WorkerId     []int64       `goconf:"snowflake:worker"`
 	Start        string        `goconf:"snowflake:start"`
+	AtomStart    int64         `goconf:"snowflake:atom.start"`
 	ZKAddr       []string      `goconf:"zookeeper:addr"`
 	ZKTimeout    time.Duration `goconf:"zookeeper:timeout:time`
 	ZKPath       string        `goconf:"zookeeper:path"`
