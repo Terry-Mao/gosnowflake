@@ -31,6 +31,7 @@ $ cd $GOPATH/src/github.com/Terry-Mao/gosnowflake
 # compile
 $ go install
 $ cp ./gosnowflake-example.conf $GOPATH/bin/gosnowflake.conf
+$ cp log.xml $GOPATH/bin/log.xml
 $ cd $GOPATH/bin
 # run
 $ ./gosnowflake -conf=./gosnowflake.conf
